@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ... (User)
+// ... (User)
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  password     String
+  role         Role          @default(CASHIER)
+  outletId     String?       // User belongs to an outlet
+  outlet       Outlet?       @relation(fields: [outletId], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+  shifts       Shift[]
+}
+
+model Shift {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  outletId  String
+  outlet    Outlet    @relation(fields: [outletId], references: [id])
+  startTime DateTime  @default(now())
+  endTime   DateTime?
+  cashStart Float     @default(0)
+  cashEnd   Float?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Outlet {
+  id             String         @id @default(cuid())
+  name           String
+  address        String?
+  phone          String?
+  isHeadquarters Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  users          User[]
+  productStocks  ProductStock[]
+  transactions   Transaction[]
+  shifts         Shift[]
+}
+
+// ... (Category)
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+  promos      Promo[]
+}
+
+model Product {
+  id               String            @id @default(cuid())
+  name             String
+  sku              String            @unique
+  price            Float
+  image            String?
+  categoryId       String
+  category         Category          @relation(fields: [categoryId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  transactionItems TransactionItem[]
+  stockMovements   StockMovement[]
+  promos           Promo[]
+  stocks           ProductStock[]    // Track stock per outlet
+}
+
+model ProductStock {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  outletId  String
+  outlet    Outlet   @relation(fields: [outletId], references: [id])
+  stock     Int      @default(0)
+  minStock  Int      @default(10)
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, outletId]) // One stock record per product per outlet
+}
+
+model StockMovement {
+  id          String        @id @default(cuid())
+  productId   String
+  product     Product       @relation(fields: [productId], references: [id])
+  outletId    String?       // Optional for now to support legacy, but should be required
+  type        MovementType
+  quantity    Int
+  reason      String?
+  reference   String?       // Transaction ID or adjustment reference
+  createdAt   DateTime      @default(now())
+  createdBy   String?       // User ID who made the change
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  email        String?
+  points       Int           @default(0)
+  tier         CustomerTier  @default(BRONZE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Transaction {
+  id            String            @id @default(cuid())
+  userId        String?           // Made optional for resilience, but usually required
+  user          User?             @relation(fields: [userId], references: [id])
+  outletId      String?           // Transcation happens at an outlet
+  outlet        Outlet?           @relation(fields: [outletId], references: [id])
+  customerId    String?
+  customer      Customer?         @relation(fields: [customerId], references: [id])
+  total         Float
+  paid          Float
+  change        Float
+  discount      Float             @default(0)
+  paymentMethod PaymentMethod     @default(CASH)
+  payments      PaymentSplit[]
+  receiptNo     String            @unique @default(cuid())
+  createdAt     DateTime          @default(now())
+  items         TransactionItem[]
+  promos        TransactionPromo[]
+  status        TransactionStatus @default(PENDING)
+}
+
+// ... (TransactionStatus enum)
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+// ... (PaymentSplit)
+model PaymentSplit {
+  id            String        @id @default(cuid())
+  transactionId String
+  transaction   Transaction   @relation(fields: [transactionId], references: [id])
+  method        PaymentMethod
+  amount        Float
+  reference     String?       // Reference number for QRIS/Card
+}
+
+// ... (TransactionItem)
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  quantity      Int
+  price         Float
+  discount      Float       @default(0)
+  subtotal      Float
+}
+
+enum Role {
+  ADMIN
+  CASHIER
+}
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  CARD
+}
+
+enum MovementType {
+  IN          // Stock masuk
+  OUT         // Stock keluar (penjualan)
+  ADJUSTMENT  // Penyesuaian stok
+  RETURN      // Retur
+}
+
+enum CustomerTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+// Promo Engine
+model Promo {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  name          String
+  description   String?
+  type          PromoType
+  
+  discountValue Float       @default(0)
+  buyQuantity   Int?
+  getQuantity   Int?
+  
+  productId     String?
+  categoryId    String?
+  minPurchase   Float       @default(0)
+  
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean     @default(true)
+  
+  maxUsage      Int?
+  usageCount    Int         @default(0)
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  product       Product?    @relation(fields: [productId], references: [id])
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  transactions  TransactionPromo[]
+}
+
+model TransactionPromo {
+  id             String      @id @default(cuid())
+  transactionId  String
+  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  promoId        String
+  promo          Promo       @relation(fields: [promoId], references: [id])
+  discountAmount Float
+}
+
+enum PromoType {
+  PERCENTAGE
+  NOMINAL
+  BUY_X_GET_Y
+}

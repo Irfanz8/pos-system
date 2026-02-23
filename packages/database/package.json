@@ -1,0 +1,17 @@
+{
+  "name": "@pos/database",
+  "version": "1.0.0",
+  "scripts": {
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.9.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.9.1",
+    "tsx": "^4.7.0"
+  }
+}
