@@ -17,6 +17,7 @@ import { emailRouter } from './routes/email.js';
 import { aiRouter } from './routes/ai.js';
 import { shiftsRouter } from './routes/shifts.js';
 import { kdsRouter } from './routes/kds.js';
+import { prisma } from './lib/prisma.js';
 
 dotenv.config();
 
@@ -60,6 +61,23 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database check
+app.get('/api/db-check', async (req, res) => {
+  try {
+    // Perform a simple query to assert the database connection is alive
+    const result = await prisma.$queryRaw`SELECT 1 as result`;
+    res.json({ status: 'success', message: 'Database connected successfully', data: result });
+  } catch (error: any) {
+    console.error("Database connection error:", error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to connect to database', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    });
+  }
 });
 
 // --- Serve Frontend Static Files (Production / cPanel) ---
