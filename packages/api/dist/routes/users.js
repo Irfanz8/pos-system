@@ -12,6 +12,7 @@ usersRouter.get('/', authMiddleware, adminOnly, async (req, res) => {
                 name: true,
                 email: true,
                 role: true,
+                outlet: { select: { id: true, name: true } },
                 createdAt: true,
                 _count: { select: { transactions: true } },
             },
@@ -26,11 +27,11 @@ usersRouter.get('/', authMiddleware, adminOnly, async (req, res) => {
 // Create user (admin only)
 usersRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, outletId } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await prisma.user.create({
-            data: { name, email, password: hashedPassword, role },
-            select: { id: true, name: true, email: true, role: true, createdAt: true },
+            data: { name, email, password: hashedPassword, role, outletId },
+            select: { id: true, name: true, email: true, role: true, outlet: { select: { id: true, name: true } }, createdAt: true },
         });
         res.status(201).json(user);
     }
@@ -44,15 +45,15 @@ usersRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
 // Update user (admin only)
 usersRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
-        const data = { name, email, role };
+        const { name, email, password, role, outletId } = req.body;
+        const data = { name, email, role, outletId };
         if (password) {
             data.password = await bcrypt.hash(password, 10);
         }
         const user = await prisma.user.update({
             where: { id: req.params.id },
             data,
-            select: { id: true, name: true, email: true, role: true, createdAt: true },
+            select: { id: true, name: true, email: true, role: true, outlet: { select: { id: true, name: true } }, createdAt: true },
         });
         res.json(user);
     }

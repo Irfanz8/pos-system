@@ -55,6 +55,28 @@ transactionsRouter.get('/', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+// Public receipt endpoint (no auth)
+transactionsRouter.get('/public/:id', async (req, res) => {
+    try {
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: req.params.id },
+            include: {
+                user: { select: { id: true, name: true } },
+                customer: { select: { id: true, name: true, phone: true } },
+                items: { include: { product: true } },
+                payments: true,
+                outlet: { select: { id: true, name: true, address: true, phone: true } },
+            },
+        });
+        if (!transaction) {
+            return res.status(404).json({ error: 'Transaction not found' });
+        }
+        res.json(transaction);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 // Get single transaction / receipt
 transactionsRouter.get('/:id', authMiddleware, async (req, res) => {
     try {

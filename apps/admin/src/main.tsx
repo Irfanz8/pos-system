@@ -17,6 +17,7 @@ const queryClient = new QueryClient({
 
 const router = createRouter({
   routeTree,
+  basepath: '/admin',
   context: {
     auth: undefined!,
   },
