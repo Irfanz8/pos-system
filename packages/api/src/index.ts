@@ -20,8 +20,9 @@ import { kdsRouter } from './routes/kds.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Fix for Serverless environments (like Netlify's esbuild) where import.meta.url might be undefined
+const __filename = typeof import.meta.url !== 'undefined' ? fileURLToPath(import.meta.url) : '';
+const __dirname = __filename ? path.dirname(__filename) : '';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,7 +53,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // --- Serve Frontend Static Files (Production / cPanel) ---
-if (process.env.NODE_ENV === 'production') {
+// Only serve via Express if not on Vercel or Netlify, as their CDNs handle static files automatically
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL && !process.env.NETLIFY && __dirname) {
   const adminDistPath = path.resolve(__dirname, '../../../apps/admin/dist');
   const cashierDistPath = path.resolve(__dirname, '../../../apps/cashier/dist');
 
