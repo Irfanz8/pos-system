@@ -73,7 +73,12 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`🚀 API running at http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`🚀 API running at http://localhost:${PORT}`);
+  });
+}
+
+// Export the express app so Vercel can run it as Serverless Function
+export default app;
 

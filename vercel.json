@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "packages/api/src/index.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "apps/admin/package.json",
+      "use": "@vercel/static-build"
+    },
+    {
+      "src": "apps/cashier/package.json",
+      "use": "@vercel/static-build"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "packages/api/src/index.ts"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "apps/admin/dist/$1"
+    },
+    {
+      "src": "/admin",
+      "dest": "apps/admin/dist/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "apps/cashier/dist/$1"
+    }
+  ]
+}
