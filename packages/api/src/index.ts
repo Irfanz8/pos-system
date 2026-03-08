@@ -47,6 +47,16 @@ app.use('/api/email', emailRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/shifts', shiftsRouter);
 
+// Global Error Handler for debugging Serverless environments
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Express Global Error:", err);
+  res.status(500).json({
+    message: err.message || "Internal Server Error",
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    error: err
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
