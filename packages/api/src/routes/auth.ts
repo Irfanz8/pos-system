@@ -53,8 +53,13 @@ authRouter.post('/login', async (req, res) => {
         outletId: user.outletId,
       },
     });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+  } catch (error: any) {
+    console.error("Login route error:", error);
+    res.status(500).json({ 
+      error: 'Server error', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
@@ -66,7 +71,12 @@ authRouter.get('/me', authMiddleware, async (req: AuthRequest, res) => {
       select: { id: true, name: true, email: true, role: true },
     });
     res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+  } catch (error: any) {
+    console.error("Get /me route error:", error);
+    res.status(500).json({ 
+      error: 'Server error', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+    });
   }
 });
