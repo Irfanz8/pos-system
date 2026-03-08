@@ -10,7 +10,7 @@
     "dev:api": "npm run dev -w packages/api",
     "dev:admin": "npm run dev -w apps/admin",
     "dev:cashier": "npm run dev -w apps/cashier",
-    "build": "npm run build -w packages/api && npm run build -w apps/admin && npm run build -w apps/cashier",
+    "build": "npm run build -w apps/admin && npm run build -w apps/cashier",
     "db:push": "npm run db:push -w packages/database",
     "db:seed": "npm run db:seed -w packages/database",
     "db:studio": "npm run db:studio -w packages/database"

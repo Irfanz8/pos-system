@@ -31,5 +31,12 @@
       "src": "/(.*)",
       "dest": "apps/cashier/dist/$1"
     }
-  ]
+  ],
+  "rewrites": [
+    {
+      "source": "/admin/(.*)",
+      "destination": "/admin/index.html"
+    }
+  ],
+  "outputDirectory": "apps/cashier/dist"
 }
