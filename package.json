@@ -11,7 +11,7 @@
     "dev:admin": "npm run dev -w apps/admin",
     "dev:cashier": "npm run dev -w apps/cashier",
     "build": "npm run build -w apps/admin && npm run build -w apps/cashier",
-    "build:netlify": "npm run build -w apps/admin && npm run build -w apps/cashier && mkdir -p apps/cashier/dist/admin && cp -r apps/admin/dist/* apps/cashier/dist/admin/",
+    "build:netlify": "npm run generate -w packages/database && npm run build -w apps/admin && npm run build -w apps/cashier && mkdir -p apps/cashier/dist/admin && cp -r apps/admin/dist/* apps/cashier/dist/admin/",
     "db:push": "npm run db:push -w packages/database",
     "db:seed": "npm run db:seed -w packages/database",
     "db:studio": "npm run db:studio -w packages/database"
