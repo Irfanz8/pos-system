@@ -1,0 +1,25 @@
+[build]
+  command = "npm run build:netlify"
+  publish = "apps/cashier/dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  # Redirect any request starting with /api/ to the Netlify Function
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  # Redirect Admin sub-routes to the admin index.html for SPA routing
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+[[redirects]]
+  # Redirect all other routes to the cashier index.html for SPA routing
+  from = "/*"
+  to = "/index.html"
+  status = 200

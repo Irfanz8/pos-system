@@ -73,12 +73,12 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+// Only listen on a port if not in production OR if not Vercel/Netlify
+if (process.env.NODE_ENV !== 'production' || (!process.env.NETLIFY && !process.env.VERCEL)) {
   app.listen(PORT, () => {
     console.log(`🚀 API running at http://localhost:${PORT}`);
   });
 }
 
-// Export the express app so Vercel can run it as Serverless Function
+// Export the express app for Serverless Environments (Vercel/Netlify)
 export default app;
-
