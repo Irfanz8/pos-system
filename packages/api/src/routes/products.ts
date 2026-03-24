@@ -77,7 +77,7 @@ productsRouter.get('/:id', authMiddleware, async (req, res) => {
 // Create product (admin only)
 productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { name, sku, price, stock, categoryId, image } = req.body;
+    const { name, sku, price, stock, categoryId, image, outletId } = req.body;
     
     // Create product without stock first
     const product = await prisma.product.create({
@@ -85,19 +85,24 @@ productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res
       include: { category: true },
     });
     
-    // If stock is provided, try to add it to Main Outlet
     if (stock && stock > 0) {
-        const mainOutlet = await prisma.outlet.findFirst({
-            where: { isHeadquarters: true }
-        });
+        let targetOutletId = outletId;
         
-        // If no HQ, try any outlet, or create one? 
-        // For now, if no outlet, we skip stock creation (User should Create Outlet first)
-        if (mainOutlet) {
+        // Fallback backward-compatibility (If user posts via old API clients)
+        if (!targetOutletId) {
+            const hq = await prisma.outlet.findFirst({ where: { isHeadquarters: true } });
+            if (hq) targetOutletId = hq.id;
+            else {
+                const anyOutlet = await prisma.outlet.findFirst();
+                if (anyOutlet) targetOutletId = anyOutlet.id;
+            }
+        }
+        
+        if (targetOutletId) {
             await prisma.productStock.create({
                 data: {
                     productId: product.id,
-                    outletId: mainOutlet.id,
+                    outletId: targetOutletId,
                     stock: Number(stock),
                 }
             });
@@ -105,7 +110,7 @@ productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res
              await prisma.stockMovement.create({
                 data: {
                     productId: product.id,
-                    outletId: mainOutlet.id,
+                    outletId: targetOutletId,
                     type: 'IN',
                     quantity: Number(stock),
                     reason: 'Initial Stock',

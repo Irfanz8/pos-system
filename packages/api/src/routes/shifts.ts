@@ -92,6 +92,21 @@ shiftsRouter.get('/current', authMiddleware, async (req: AuthRequest, res) => {
       include: { outlet: true }
     });
 
+    if (activeShift) {
+      const cashAgg = await prisma.transaction.aggregate({
+        _sum: { total: true },
+        where: {
+          userId,
+          outletId: activeShift.outletId,
+          paymentMethod: 'CASH',
+          status: { not: 'CANCELLED' },
+          createdAt: { gte: activeShift.startTime }
+        }
+      });
+      const totalCashSales = cashAgg._sum.total || 0;
+      (activeShift as any).expectedCash = activeShift.cashStart + totalCashSales;
+    }
+
     res.json(activeShift);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });

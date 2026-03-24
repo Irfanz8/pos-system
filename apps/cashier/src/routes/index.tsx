@@ -1,10 +1,10 @@
 import { createFileRoute, redirect, useNavigate, Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { productsApi, categoriesApi, transactionsApi, customersApi, outletsApi, emailApi, shiftsApi } from '../lib/api'
+import { productsApi, categoriesApi, transactionsApi, customersApi, outletsApi, emailApi, shiftsApi, promosApi } from '../lib/api'
 import QRCode from 'react-qr-code'
 import { useAuth } from '../lib/auth'
 import { useState, useEffect } from 'react'
-import { Search, Plus, Minus, Trash2, ShoppingCart, LogOut, CreditCard, Banknote, X, Check, Wifi, WifiOff, CloudOff, RefreshCw, UserPlus, Phone, Store, Clock, Monitor } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, LogOut, CreditCard, Banknote, X, Check, Wifi, WifiOff, CloudOff, RefreshCw, UserPlus, Phone, Store, Clock, Monitor, Ticket, CheckCircle2 } from 'lucide-react'
 import { 
   initDB, 
   saveOfflineTransaction, 
@@ -22,7 +22,7 @@ export const Route = createFileRoute('/')({
   component: POSPage,
 })
 
-interface CartItem { id: string; name: string; price: number; quantity: number }
+interface CartItem { id: string; name: string; price: number; quantity: number; stock: number }
 
 function POSPage() {
   const { user, logout } = useAuth()
@@ -39,6 +39,9 @@ function POSPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [customer, setCustomer] = useState<any>(null)
   const [customerLoading, setCustomerLoading] = useState(false)
+  
+  // Alert Modal State
+  const [alertMsg, setAlertMsg] = useState('')
   
   // Offline state - fully automatic
   const [networkOnline, setNetworkOnline] = useState(navigator.onLine)
@@ -115,25 +118,26 @@ function POSPage() {
 
   const handleShiftAction = async () => {
     if (!networkOnline) {
-      alert('Shift hanya bisa dikelola saat Online');
+      setAlertMsg('Shift hanya bisa dikelola saat Online');
       return;
     }
     try {
       if (currentShift) {
-        // Clock Out
-        await shiftsApi.clockOut(Number(shiftCash))
-        alert('Shift berakhir. Terima kasih!')
+        // Clock Out with calculated amount
+        const cashEnd = currentShift.expectedCash || 0
+        await shiftsApi.clockOut(cashEnd)
+        setAlertMsg('Shift berakhir. Terima kasih!')
       } else {
         // Clock In
-        if (!outletId) return alert('Pilih outlet terlebih dahulu')
+        if (!outletId) return setAlertMsg('Pilih outlet terlebih dahulu')
         await shiftsApi.clockIn(outletId, Number(shiftCash))
-        alert('Shift dimulai. Selamat bekerja!')
+        setAlertMsg('Shift dimulai. Selamat bekerja!')
       }
       setShowShiftModal(false)
       setShiftCash('')
       refetchShift()
     } catch (error) {
-      alert('Gagal memproses shift')
+      setAlertMsg('Gagal memproses shift')
     }
   }
 
@@ -216,19 +220,35 @@ function POSPage() {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   const addToCart = (product: any) => {
-    // Check local stock if offline
-    if (usingCache && product.stock <= 0) {
-      alert('Stok habis (Offline Mode)');
+    // Check stock online and offline
+    if (product.stock <= 0) {
+      setAlertMsg('Stok habis');
       return;
     }
     
     const existing = cart.find(i => i.id === product.id)
-    if (existing) setCart(cart.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
-    else setCart([...cart, { id: product.id, name: product.name, price: product.price, quantity: 1 }])
+    if (existing) {
+      if (existing.quantity >= product.stock) {
+        setAlertMsg('Stok tidak mencukupi');
+        return;
+      }
+      setCart(cart.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
+    }
+    else setCart([...cart, { id: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }])
   }
 
   const updateQty = (id: string, delta: number) => {
-    setCart(cart.map(i => i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i))
+    setCart(cart.map(i => {
+      if (i.id === id) {
+        const newQty = Math.max(1, i.quantity + delta);
+        if (newQty > i.stock) {
+          setAlertMsg('Stok tidak mencukupi');
+          return i;
+        }
+        return { ...i, quantity: newQty };
+      }
+      return i;
+    }))
   }
 
   const removeFromCart = (id: string) => setCart(cart.filter(i => i.id !== id))
@@ -342,7 +362,11 @@ function POSPage() {
           {productsLoading ? (
             <p className="text-slate-400 col-span-full text-center py-10">Memuat produk...</p>
           ) : products?.map((product: any) => (
-            <div key={product.id} onClick={() => addToCart(product)} className="bg-slate-800 p-4 rounded-xl cursor-pointer hover:bg-slate-700 transition-colors group">
+            <div 
+              key={product.id} 
+              onClick={() => product.stock > 0 && addToCart(product)} 
+              className={`bg-slate-800 p-4 rounded-xl transition-colors group ${product.stock <= 0 ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-slate-700'}`}
+            >
               <div className="aspect-square bg-slate-700 rounded-lg mb-3 overflow-hidden relative">
                  {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src = 'https://placehold.co/100?text=No+Image'} />
@@ -351,7 +375,7 @@ function POSPage() {
                  )}
                  {/* Stock Indicator */}
                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-sm">
-                    Stok: {product.stocks?.[0]?.stock || 0}
+                    Stok: {product.stock !== undefined ? product.stock : 0}
                  </div>
               </div>
               <h3 className="font-medium text-slate-200 group-hover:text-emerald-400 truncate">{product.name}</h3>
@@ -490,10 +514,11 @@ function POSPage() {
                   <span className="absolute left-3 top-3 text-slate-400">Rp</span>
                   <input 
                     type="number" 
-                    value={shiftCash} 
+                    value={currentShift ? (currentShift.expectedCash || 0) : shiftCash} 
                     onChange={(e) => setShiftCash(e.target.value)} 
-                    className="input w-full pl-10 bg-slate-100 text-slate-800 border-slate-300" 
+                    className={`input w-full pl-10 ${currentShift ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-100 text-slate-800'} border-slate-300`} 
                     placeholder="0"
+                    disabled={!!currentShift}
                   />
                 </div>
               </div>
@@ -508,6 +533,9 @@ function POSPage() {
           </div>
         </div>
       )}
+
+      {/* Alert Modal globally managing errors/messages inside POS */}
+      <AlertModal message={alertMsg} onClose={() => setAlertMsg('')} />
     </div>
   )
 }
@@ -558,11 +586,44 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
   const [usePoints, setUsePoints] = useState(false)
   const [redeemedPoints, setRedeemedPoints] = useState(0)
 
+  // Promo state
+  const [promoCode, setPromoCode] = useState('')
+  const [promoError, setPromoError] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState<any>(null)
+  const [promoDiscount, setPromoDiscount] = useState(0)
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false)
+
   const formatCurrency = (v: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v)
   
-  // Calculate final total after point deduction (1 Point = 100 IDR)
+  const validatePromo = async () => {
+    if (!promoCode.trim()) return
+    if (!online) { setPromoError('Promo tidak bisa dipakai saat offline'); return }
+    
+    setIsValidatingPromo(true)
+    setPromoError('')
+    try {
+      const res = await promosApi.validate({ code: promoCode, total })
+      setAppliedPromo(res.data.promo)
+      setPromoDiscount(res.data.discount)
+    } catch (err: any) {
+      setPromoError(err.response?.data?.error || 'Promo tidak valid')
+      setAppliedPromo(null)
+      setPromoDiscount(0)
+    } finally {
+      setIsValidatingPromo(false)
+    }
+  }
+
+  const removePromo = () => {
+    setAppliedPromo(null)
+    setPromoDiscount(0)
+    setPromoCode('')
+  }
+  
+  // LOGIKA DISKON BERSUSUN (CASCADING DISCOUNT): Subtotal -> Promo -> Points
+  const totalAfterPromo = Math.max(0, total - promoDiscount)
   const pointDiscount = redeemedPoints * 100
-  const finalTotal = Math.max(0, total - pointDiscount)
+  const finalTotal = Math.max(0, totalAfterPromo - pointDiscount)
   
   const paidNum = parseFloat(paid) || 0
   const change = paidNum - finalTotal
@@ -578,7 +639,7 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
       total: finalTotal,
       paid: paidNum,
       change: change,
-      discount: pointDiscount,
+      discount: pointDiscount + promoDiscount,
       paymentMethod: method,
       redeemPoints: redeemedPoints,
       outletId,
@@ -595,6 +656,7 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
           paymentMethod: method,
           customerId: customerId || undefined,
           redeemPoints: redeemedPoints,
+          discount: pointDiscount + promoDiscount,
           outletId,
         });
         onSuccess(res.data, false);
@@ -651,45 +713,91 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
         <div className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
           
-          <div className="text-center py-4">
-            <p className="text-slate-400">Total</p>
-            <p className="text-4xl font-bold text-white">{formatCurrency(Math.max(0, total - (redeemedPoints * 100)))}</p>
-            {redeemedPoints > 0 && <p className="text-sm text-emerald-400">Hemat {formatCurrency(redeemedPoints * 100)} ({redeemedPoints} poin)</p>}
+          <div className="text-center py-4 bg-slate-900/50 rounded-xl mb-4 border border-slate-700">
+            <p className="text-slate-400">Subtotal: {formatCurrency(total)}</p>
+            {promoDiscount > 0 && <p className="text-emerald-400 text-sm">Diskon Promo: -{formatCurrency(promoDiscount)}</p>}
+            {redeemedPoints > 0 && <p className="text-yellow-400 text-sm">Tukar Poin: -{formatCurrency(redeemedPoints * 100)}</p>}
+            <p className="text-5xl font-bold text-white mt-3">{formatCurrency(finalTotal)}</p>
+            <p className="text-xs text-slate-500 mt-2">Total Tagihan (Grand Total)</p>
           </div>
           
-          {customerPoints > 0 && (
+          <div className="space-y-3 mb-4">
+            {/* Promo Input */}
             <div className="bg-slate-700 p-3 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-yellow-400 flex items-center gap-1">⭐ Poin: {customerPoints}</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={usePoints} onChange={(e) => {
-                    setUsePoints(e.target.checked);
-                    if (e.target.checked) {
-                      const maxRedeemableByPrice = Math.ceil(total / 100); 
-                      setRedeemedPoints(Math.min(customerPoints, maxRedeemableByPrice));
-                    } else {
-                      setRedeemedPoints(0);
-                    }
-                  }} />
-                  <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                  <span className="ml-2 text-sm text-slate-300">Tukar</span>
-                </label>
-              </div>
-              {usePoints && (
-                 <div className="flex items-center gap-2">
-                   <input 
-                    type="range" 
-                    min="0" 
-                    max={Math.min(customerPoints, Math.ceil(total / 100))} 
-                    value={redeemedPoints} 
-                    onChange={(e) => setRedeemedPoints(parseInt(e.target.value))}
-                    className="flex-1 accent-emerald-500"
-                   />
-                   <span className="text-xs text-white w-12 text-right">{redeemedPoints}</span>
-                 </div>
+              {appliedPromo ? (
+                <div className="flex items-center justify-between bg-emerald-500/20 p-2 rounded border border-emerald-500/30">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <p className="text-sm font-bold text-emerald-400">{appliedPromo.code}</p>
+                      <p className="text-xs text-emerald-500/80">{appliedPromo.name}</p>
+                    </div>
+                  </div>
+                  <button onClick={removePromo} className="text-emerald-400/50 hover:text-emerald-400">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text" 
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                        placeholder="Kode Promo" 
+                        className="input pl-9 w-full uppercase"
+                      />
+                    </div>
+                    <button 
+                      onClick={validatePromo}
+                      disabled={isValidatingPromo || !promoCode}
+                      className="btn btn-primary px-4 bg-slate-600 hover:bg-slate-500 disabled:opacity-50"
+                    >
+                      {isValidatingPromo ? '...' : 'Cek'}
+                    </button>
+                  </div>
+                  {promoError && <p className="text-red-400 text-xs mt-2">{promoError}</p>}
+                </div>
               )}
             </div>
-          )}
+
+            {/* Points UI */}
+            {customerPoints > 0 && (
+              <div className="bg-slate-700 p-3 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-yellow-400 flex items-center gap-1">⭐ Poin: {customerPoints}</span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={usePoints} onChange={(e) => {
+                      setUsePoints(e.target.checked);
+                      if (e.target.checked) {
+                        const maxRedeemableByPrice = Math.ceil(totalAfterPromo / 100); 
+                        setRedeemedPoints(Math.min(customerPoints, maxRedeemableByPrice));
+                      } else {
+                        setRedeemedPoints(0);
+                      }
+                    }} />
+                    <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    <span className="ml-2 text-sm text-slate-300">Tukar</span>
+                  </label>
+                </div>
+                {usePoints && (
+                   <div className="flex items-center gap-2">
+                     <input 
+                      type="range" 
+                      min="0" 
+                      max={Math.min(customerPoints, Math.ceil(totalAfterPromo / 100))} 
+                      value={redeemedPoints} 
+                      onChange={(e) => setRedeemedPoints(parseInt(e.target.value))}
+                      className="flex-1 accent-emerald-500"
+                     />
+                     <span className="text-xs text-white w-12 text-right">{redeemedPoints}</span>
+                   </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-2">
             <button onClick={() => setMethod('CASH')} className={`flex-1 py-3 rounded-lg flex items-center justify-center gap-2 ${method === 'CASH' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300'}`}><Banknote className="w-5 h-5" /> Cash</button>
@@ -708,6 +816,7 @@ function ReceiptModal({ transaction, onClose }: { transaction: any; onClose: () 
   const [email, setEmail] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showEmailInput, setShowEmailInput] = useState(false)
+  const [alertMsg, setAlertMsg] = useState('')
   
   const validTxId = transaction.receiptNo?.startsWith('OFFLINE') ? null : transaction.id;
   const receiptUrl = validTxId ? `${window.location.origin}/receipt/${validTxId}` : null;
@@ -720,10 +829,10 @@ function ReceiptModal({ transaction, onClose }: { transaction: any; onClose: () 
     setSendingEmail(true);
     try {
       await emailApi.sendReceipt(email, validTxId);
-      alert('Email berhasil dikirim!');
+      setAlertMsg('Email berhasil dikirim!');
       setShowEmailInput(false);
     } catch (error) {
-      alert('Gagal mengirim email');
+      setAlertMsg('Gagal mengirim email');
     } finally {
       setSendingEmail(false);
     }
@@ -798,6 +907,21 @@ function ReceiptModal({ transaction, onClose }: { transaction: any; onClose: () 
           
           <button onClick={onClose} className="w-full bg-slate-800 text-white py-3 rounded-lg font-medium">Selesai</button>
         </div>
+      </div>
+      <AlertModal message={alertMsg} onClose={() => setAlertMsg('')} />
+    </div>
+  )
+}
+
+export function AlertModal({ message, onClose }: { message: string, onClose: () => void }) {
+  if (!message) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
+      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl scale-100 animate-in fade-in zoom-in-95 duration-200">
+        <h3 className="text-lg font-bold text-white mb-6">{message}</h3>
+        <button onClick={onClose} className="btn btn-primary w-full py-3 rounded-xl font-bold">
+          OK
+        </button>
       </div>
     </div>
   )

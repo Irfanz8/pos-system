@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { Plus, Search, Edit, Trash2, MapPin, Phone, Building } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { outletsApi } from '../lib/api'
 
 export const Route = createFileRoute('/outlets')({
@@ -63,14 +64,16 @@ function OutletsPage() {
     try {
       if (editingOutlet) {
         await outletsApi.update(editingOutlet.id, formData)
+        toast.success('Outlet berhasil diupdate')
       } else {
         await outletsApi.create(formData)
+        toast.success('Outlet berhasil ditambahkan')
       }
       setIsModalOpen(false)
       fetchOutlets()
     } catch (error) {
       console.error('Failed to save outlet', error)
-      alert('Gagal menyimpan outlet')
+      toast.error('Gagal menyimpan outlet')
     }
   }
 
@@ -79,9 +82,10 @@ function OutletsPage() {
     try {
       await outletsApi.delete(id)
       fetchOutlets()
+      toast.success('Outlet berhasil dihapus')
     } catch (error) {
       console.error('Failed to delete outlet', error)
-      alert('Gagal menghapus outlet. Pastikan tidak ada user yang terhubung.')
+      toast.error('Gagal menghapus outlet. Pastikan tidak ada user yang terhubung.')
     }
   }
 

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { categoriesApi } from '../lib/api'
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, Tags, X } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/categories')({
   beforeLoad: ({ context }) => {
@@ -30,7 +31,9 @@ function CategoriesPage() {
     mutationFn: (id: string) => categoriesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
+      toast.success('Kategori berhasil dihapus')
     },
+    onError: () => toast.error('Gagal menghapus kategori')
   })
 
   const handleEdit = (category: any) => {
@@ -148,8 +151,10 @@ function CategoryModal({
     try {
       if (category) {
         await categoriesApi.update(category.id, formData)
+        toast.success('Kategori berhasil diupdate')
       } else {
         await categoriesApi.create(formData)
+        toast.success('Kategori berhasil ditambahkan')
       }
 
       queryClient.invalidateQueries({ queryKey: ['categories'] })

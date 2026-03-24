@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { transactionsApi } from '../lib/api'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 import {
   ShoppingCart,
 
@@ -179,8 +180,9 @@ function TxDetailModal({ transaction, onClose }: { transaction: any; onClose: ()
       await transactionsApi.void(tx.id, voidReason)
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       onClose()
+      toast.success('Transaksi berhasil di-void')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Gagal void transaksi')
+      toast.error(err.response?.data?.error || 'Gagal void transaksi')
     } finally {
       setLoading(false)
     }

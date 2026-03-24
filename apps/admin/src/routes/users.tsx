@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi, outletsApi } from '../lib/api'
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/users')({
   beforeLoad: ({ context }) => {
@@ -25,7 +26,11 @@ function UsersPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => usersApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Pengguna berhasil dihapus')
+    },
+    onError: () => toast.error('Gagal menghapus pengguna'),
   })
 
   return (
@@ -103,6 +108,7 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
       const data = { ...formData }
       if (!data.password && user) delete (data as any).password
       user ? await usersApi.update(user.id, data) : await usersApi.create(data)
+      toast.success(user ? 'Pengguna berhasil diupdate' : 'Pengguna berhasil ditambahkan')
       queryClient.invalidateQueries({ queryKey: ['users'] })
       onClose()
     } catch (err: any) { setError(err.response?.data?.error || 'Gagal menyimpan') }

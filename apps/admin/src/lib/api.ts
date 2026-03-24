@@ -37,7 +37,7 @@ export const authApi = {
 
 // Products
 export const productsApi = {
-  getAll: (params?: { categoryId?: string; search?: string }) =>
+  getAll: (params?: { categoryId?: string; search?: string; outletId?: string }) =>
     api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
   create: (data: any) => api.post('/products', data),

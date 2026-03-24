@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { customersApi } from '../lib/api'
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, Search, Users, X, Star, Phone } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/customers')({
   beforeLoad: ({ context }) => {
@@ -29,7 +30,11 @@ function CustomersPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => customersApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      toast.success('Pelanggan berhasil dihapus')
+    },
+    onError: () => toast.error('Gagal menghapus pelanggan'),
   })
 
   const tierColors: Record<string, string> = {
@@ -151,8 +156,10 @@ function CustomerModal({ customer, onClose }: { customer: any; onClose: () => vo
     try {
       if (customer) {
         await customersApi.update(customer.id, formData)
+        toast.success('Data pelanggan berhasil diupdate')
       } else {
         await customersApi.create(formData)
+        toast.success('Pelanggan berhasil ditambahkan')
       }
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       onClose()
@@ -210,6 +217,7 @@ function PointsModal({ customer, onClose }: { customer: any; onClose: () => void
       await customersApi.addPoints(customer.id, parseInt(amount), type)
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       onClose()
+      toast.success(type === 'add' ? 'Poin berhasil ditambahkan' : 'Poin berhasil ditukar')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Gagal')
     } finally {

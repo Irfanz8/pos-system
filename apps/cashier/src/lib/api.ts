@@ -36,7 +36,7 @@ export const categoriesApi = {
 };
 
 export const transactionsApi = {
-  create: (data: { items: any[]; paid: number; paymentMethod: string; customerId?: string; redeemPoints?: number; outletId?: string }) => api.post('/transactions', data),
+  create: (data: { items: any[]; paid: number; paymentMethod: string; customerId?: string; redeemPoints?: number; discount?: number; outletId?: string }) => api.post('/transactions', data),
   getAll: (params?: any) => api.get('/transactions', { params }),
   getByReceipt: (receiptNo: string) => api.get(`/transactions/receipt/${receiptNo}`),
 };
@@ -50,6 +50,9 @@ export const outletsApi = {
   getAll: () => api.get('/outlets'),
 };
 
+export const promosApi = {
+  validate: (data: { code: string; total?: number; items?: any[] }) => api.post('/promos/validate', data),
+};
 
 export const emailApi = {
   sendReceipt: (email: string, transactionId: string) => api.post('/email/send-receipt', { email, transactionId }),

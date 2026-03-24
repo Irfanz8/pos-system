@@ -1,4 +1,5 @@
 import { createRootRouteWithContext, Outlet, Link } from '@tanstack/react-router'
+import { Toaster } from 'react-hot-toast'
 import { useAuth } from '../lib/auth'
 import {
   LayoutDashboard,
@@ -128,6 +129,7 @@ function RootComponent() {
           <Outlet />
         </div>
       </main>
+      <Toaster position="top-center" />
     </div>
   )
 }

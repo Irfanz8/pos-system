@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { productsApi, categoriesApi } from '../lib/api'
+import { productsApi, categoriesApi, outletsApi } from '../lib/api'
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, Search, Package, X } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/products')({
   beforeLoad: ({ context }) => {
@@ -17,15 +18,17 @@ function ProductsPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [outletFilter, setOutletFilter] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<any>(null)
 
   const { data: products, isLoading } = useQuery({
-    queryKey: ['products', search, categoryFilter],
+    queryKey: ['products', search, categoryFilter, outletFilter],
     queryFn: async () => {
       const response = await productsApi.getAll({
         search: search || undefined,
         categoryId: categoryFilter || undefined,
+        outletId: outletFilter || undefined,
       })
       return response.data
     },
@@ -39,11 +42,18 @@ function ProductsPage() {
     },
   })
 
+  const { data: outlets } = useQuery({
+    queryKey: ['outlets'],
+    queryFn: async () => (await outletsApi.getAll()).data,
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => productsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      toast.success('Produk berhasil dihapus')
     },
+    onError: () => toast.error('Gagal menghapus produk')
   })
 
   const formatCurrency = (value: number) => {
@@ -106,6 +116,16 @@ function ProductsPage() {
             <option key={cat.id} value={cat.id}>
               {cat.name}
             </option>
+          ))}
+        </select>
+        <select
+          value={outletFilter}
+          onChange={(e) => setOutletFilter(e.target.value)}
+          className="input md:w-48"
+        >
+          <option value="">Semua Outlet (Total)</option>
+          {outlets?.map((o: any) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
           ))}
         </select>
       </div>
@@ -225,6 +245,12 @@ function ProductModal({
     price: product?.price || '',
     stock: product?.stock || 0,
     categoryId: product?.categoryId || '',
+    outletId: '',
+  })
+  
+  const { data: outlets } = useQuery({
+    queryKey: ['outlets'],
+    queryFn: async () => (await outletsApi.getAll()).data,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -243,8 +269,10 @@ function ProductModal({
 
       if (product) {
         await productsApi.update(product.id, data)
+        toast.success('Produk berhasil diupdate')
       } else {
         await productsApi.create(data)
+        toast.success('Produk berhasil ditambahkan')
       }
 
       queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -328,15 +356,30 @@ function ProductModal({
             </div>
             <div>
               <label className="label">Stok {product ? '(Total)' : '(Awal)'}</label>
-              <input
-                type="number"
-                value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                className="input disabled:bg-slate-100 disabled:text-slate-500"
-                required
-                min="0"
-                disabled={!!product}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                  className="input w-24 disabled:bg-slate-100 disabled:text-slate-500"
+                  required
+                  min="0"
+                  disabled={!!product}
+                />
+                {!product && (
+                  <select
+                    value={formData.outletId}
+                    onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
+                    className="input flex-1"
+                    required={Number(formData.stock) > 0}
+                  >
+                    <option value="">Ke Outlet...</option>
+                    {outlets?.map((o: any) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
               {product && <p className="text-xs text-slate-500 mt-1">Stok hanya dapat diubah melalui menu Stok.</p>}
             </div>
           </div>

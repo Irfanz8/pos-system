@@ -4,13 +4,14 @@ import { categoriesApi, productsApi, transactionsApi } from '../../lib/api'
 import { useState } from 'react'
 import { ChevronLeft, Loader2, Plus, Minus, X, CreditCard, Banknote } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
+import { AlertModal } from '../index'
 
 export const Route = createFileRoute('/kiosk/menu')({
   beforeLoad: ({ context }) => { if (!context.auth.isAuthenticated) throw redirect({ to: '/login' }) },
   component: KioskMenu,
 })
 
-interface CartItem { id: string; name: string; price: number; quantity: number }
+interface CartItem { id: string; name: string; price: number; quantity: number; stock: number }
 
 function KioskMenu() {
   const navigate = useNavigate()
@@ -20,6 +21,7 @@ function KioskMenu() {
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [orderProcessing, setOrderProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'CASH'>('QRIS')
+  const [alertMsg, setAlertMsg] = useState('')
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -37,19 +39,32 @@ function KioskMenu() {
   })
 
   const addToCart = (product: any) => {
+    if (product.stock <= 0) {
+      setAlertMsg('Stok habis');
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id)
       if (existing) {
+        if (existing.quantity >= product.stock) {
+          setAlertMsg('Stok tidak mencukupi');
+          return prev;
+        }
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
       }
-      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1 }]
+      return [...prev, { id: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }]
     })
   }
 
   const updateQty = (id: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        return { ...item, quantity: Math.max(0, item.quantity + delta) }
+        const newQty = Math.max(0, item.quantity + delta);
+        if (newQty > item.stock) {
+          setAlertMsg('Stok tidak mencukupi');
+          return item;
+        }
+        return { ...item, quantity: newQty };
       }
       return item
     }).filter(item => item.quantity > 0))
@@ -75,7 +90,7 @@ function KioskMenu() {
       
       navigate({ to: '/kiosk/success', search: { orderId: res.data.receiptNo || res.data.id } })
     } catch (error) {
-      alert('Gagal membuat pesanan. Silakan coba lagi.')
+      setAlertMsg('Gagal membuat pesanan. Silakan coba lagi.')
     } finally {
       setOrderProcessing(false)
     }
@@ -128,7 +143,11 @@ function KioskMenu() {
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
             {products?.map((product: any) => (
-              <div key={product.id} onClick={() => addToCart(product)} className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden active:scale-95 transition-transform">
+              <div 
+                key={product.id} 
+                onClick={() => product.stock > 0 && addToCart(product)} 
+                className={`bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden transition-transform ${product.stock <= 0 ? 'opacity-50 grayscale cursor-not-allowed' : 'active:scale-95 cursor-pointer'}`}
+              >
                 <div className="aspect-[4/3] bg-slate-100 relative">
                     {product.image ? (
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
@@ -136,10 +155,14 @@ function KioskMenu() {
                         <div className="flex items-center justify-center h-full text-slate-400">No Image</div>
                     )}
                     {cart.find(i => i.id === product.id) && (
-                        <div className="absolute top-4 right-4 bg-emerald-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg">
+                        <div className="absolute top-4 left-4 bg-emerald-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-lg">
                             {cart.find(i => i.id === product.id)?.quantity}
                         </div>
                     )}
+                    {/* Stock Indicator */}
+                    <div className="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold bg-black/60 text-white backdrop-blur-sm shadow-lg">
+                      Stok: {product.stock !== undefined ? product.stock : 0}
+                    </div>
                 </div>
                 <div className="p-5">
                   <h3 className="font-bold text-slate-800 text-lg mb-1">{product.name}</h3>
@@ -245,6 +268,7 @@ function KioskMenu() {
               </div>
           </div>
       )}
+      <AlertModal message={alertMsg} onClose={() => setAlertMsg('')} />
     </div>
   )
 }

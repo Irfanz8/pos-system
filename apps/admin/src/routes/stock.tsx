@@ -13,6 +13,7 @@ import {
   X,
   ClipboardList,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/stock')({
   beforeLoad: ({ context }) => {
@@ -113,7 +114,11 @@ function StockPage() {
                         <span className="text-xs text-slate-400 font-mono">{m.product?.sku}</span>
                       </td>
                       <td className="table-cell"><span className={`px-2 py-1 rounded-full text-xs font-medium ${t.color}`}>{t.label}</span></td>
-                      <td className="table-cell font-semibold">{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</td>
+                      <td className="table-cell">
+                        <span className={`font-semibold ${(m.type === 'IN' || m.type === 'RETURN' || (m.type === 'ADJUSTMENT' && m.quantity > 0)) ? 'text-green-600' : 'text-red-600'}`}>
+                          {(m.type === 'IN' || m.type === 'RETURN' || (m.type === 'ADJUSTMENT' && m.quantity > 0)) ? `+${m.quantity}` : `-${Math.abs(m.quantity)}`}
+                        </span>
+                      </td>
                       <td className="table-cell text-sm text-slate-500">{m.reason || '-'}</td>
                     </tr>
                   )
@@ -155,6 +160,7 @@ function AdjustModal({ onClose }: { onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] })
       queryClient.invalidateQueries({ queryKey: ['products'] })
       onClose()
+      toast.success('Stok berhasil disesuaikan')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Gagal menyimpan')
     } finally {
@@ -247,6 +253,7 @@ function OpnameModal({ onClose }: { onClose: () => void }) {
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] })
       queryClient.invalidateQueries({ queryKey: ['products'] })
       onClose()
+      toast.success('Stock opname berhasil disimpan')
     } catch (err: any) {
       setError(err.response?.data?.error || 'Gagal menyimpan')
     } finally {
