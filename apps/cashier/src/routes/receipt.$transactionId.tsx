@@ -87,7 +87,7 @@ function PublicReceiptPage() {
           <div className="space-y-2 mb-8">
             <div className="flex justify-between text-slate-600">
               <p>Subtotal</p>
-              <p className="font-medium">{formatCurrency(transaction.total)}</p>
+              <p className="font-medium">{formatCurrency(transaction.total - (transaction.taxAmount || 0) + (transaction.discount || 0))}</p>
             </div>
             {transaction.discount > 0 && (
               <div className="flex justify-between text-emerald-600">
@@ -95,8 +95,28 @@ function PublicReceiptPage() {
                 <p className="font-medium">-{formatCurrency(transaction.discount)}</p>
               </div>
             )}
+            {transaction.taxAmount > 0 ? (
+              (transaction.outlet?.taxes && transaction.outlet.taxes.length > 0) ? (
+                transaction.outlet.taxes.map((t: any, idx: number) => {
+                  const exclusiveTaxes = transaction.outlet.taxes;
+                  const totalExclusiveRate = exclusiveTaxes.reduce((sum:number, tx:any) => sum + tx.rate, 0);
+                  const amount = totalExclusiveRate > 0 ? transaction.taxAmount * (t.rate / totalExclusiveRate) : 0;
+                  return (
+                    <div key={idx} className="flex justify-between text-orange-500">
+                      <p>{t.name}</p>
+                      <p className="font-medium">{formatCurrency(amount)}</p>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="flex justify-between text-orange-500">
+                  <p>Pajak Tambahan</p>
+                  <p className="font-medium">{formatCurrency(transaction.taxAmount)}</p>
+                </div>
+              )
+            ) : null}
             <div className="flex justify-between text-slate-800 text-lg font-bold pt-4 border-t">
-              <p>Total</p>
+              <p>Total Tagihan</p>
               <p>{formatCurrency(transaction.total)}</p>
             </div>
             <div className="flex justify-between text-slate-500 text-sm pt-2">

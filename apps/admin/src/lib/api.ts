@@ -137,3 +137,12 @@ export const aiApi = {
   getAnomalies: (outletId?: string) => api.get('/ai/anomalies', { params: { outletId } }),
 };
 
+// Taxes
+export const taxesApi = {
+  getAll: (params?: { outletId?: string }) => api.get('/taxes', { params }),
+  getById: (id: string) => api.get(`/taxes/${id}`),
+  create: (data: any) => api.post('/taxes', data),
+  update: (id: string, data: any) => api.put(`/taxes/${id}`, data),
+  delete: (id: string) => api.delete(`/taxes/${id}`),
+};
+

@@ -16,6 +16,7 @@ import {
   Ticket,
   Brain,
   Clock,
+  Receipt,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -45,6 +46,7 @@ function RootComponent() {
     { to: '/promos', label: 'Promo', icon: Ticket },
     { to: '/users', label: 'Pengguna', icon: Users },
     { to: '/outlets', label: 'Outlet', icon: Warehouse },
+    { to: '/taxes', label: 'Pajak & Biaya', icon: Receipt },
     { to: '/reports', label: 'Laporan', icon: FileBarChart },
     { to: '/ai-insights', label: 'AI Insights', icon: Brain },
     { to: '/shifts', label: 'Shift', icon: Clock },

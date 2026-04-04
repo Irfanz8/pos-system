@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as StockRouteImport } from './routes/stock'
 import { Route as ShiftsRouteImport } from './routes/shifts'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -31,6 +32,11 @@ const UsersRoute = UsersRouteImport.update({
 const TransactionsRoute = TransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaxesRoute = TaxesRouteImport.update({
+  id: '/taxes',
+  path: '/taxes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StockRoute = StockRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
+  '/taxes': typeof TaxesRoute
   '/transactions': typeof TransactionsRoute
   '/users': typeof UsersRoute
 }
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
+  '/taxes': typeof TaxesRoute
   '/transactions': typeof TransactionsRoute
   '/users': typeof UsersRoute
 }
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
+  '/taxes': typeof TaxesRoute
   '/transactions': typeof TransactionsRoute
   '/users': typeof UsersRoute
 }
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/shifts'
     | '/stock'
+    | '/taxes'
     | '/transactions'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/shifts'
     | '/stock'
+    | '/taxes'
     | '/transactions'
     | '/users'
   id:
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/shifts'
     | '/stock'
+    | '/taxes'
     | '/transactions'
     | '/users'
   fileRoutesById: FileRoutesById
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ShiftsRoute: typeof ShiftsRoute
   StockRoute: typeof StockRoute
+  TaxesRoute: typeof TaxesRoute
   TransactionsRoute: typeof TransactionsRoute
   UsersRoute: typeof UsersRoute
 }
@@ -213,6 +226,13 @@ declare module '@tanstack/react-router' {
       path: '/transactions'
       fullPath: '/transactions'
       preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/taxes': {
+      id: '/taxes'
+      path: '/taxes'
+      fullPath: '/taxes'
+      preLoaderRoute: typeof TaxesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stock': {
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ShiftsRoute: ShiftsRoute,
   StockRoute: StockRoute,
+  TaxesRoute: TaxesRoute,
   TransactionsRoute: TransactionsRoute,
   UsersRoute: UsersRoute,
 }

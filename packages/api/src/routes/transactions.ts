@@ -71,7 +71,12 @@ transactionsRouter.get('/public/:id', async (req, res) => {
         customer: { select: { id: true, name: true, phone: true } },
         items: { include: { product: true } },
         payments: true,
-        outlet: { select: { id: true, name: true, address: true, phone: true } },
+        outlet: { 
+          select: { 
+            id: true, name: true, address: true, phone: true,
+            taxes: { where: { isActive: true, type: 'EXCLUSIVE' } }
+          } 
+        },
       },
     });
     
@@ -208,8 +213,36 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     const totalDiscount = (discount || 0) + pointDiscount;
-    const total = Math.max(0, subtotal - totalDiscount);
+    const taxableAmount = Math.max(0, subtotal - totalDiscount);
     
+    // Calculate Taxes
+    const taxes = await prisma.tax.findMany({
+      where: { outletId: targetOutletId, isActive: true }
+    });
+    
+    let totalTaxAmount = 0;
+    const inclusiveTaxes = taxes.filter((t: any) => t.type === 'INCLUSIVE');
+    const exclusiveTaxes = taxes.filter((t: any) => t.type === 'EXCLUSIVE');
+    
+    const totalInclusiveRate = inclusiveTaxes.reduce((sum: number, t: any) => sum + t.rate, 0);
+    const baseAmountWithoutInclusive = totalInclusiveRate > 0 
+      ? taxableAmount / (1 + (totalInclusiveRate / 100)) 
+      : taxableAmount;
+      
+    if (totalInclusiveRate > 0) {
+      totalTaxAmount += (taxableAmount - baseAmountWithoutInclusive);
+    }
+    
+    const totalExclusiveRate = exclusiveTaxes.reduce((sum: number, t: any) => sum + t.rate, 0);
+    const exclusiveTaxAmount = baseAmountWithoutInclusive * (totalExclusiveRate / 100);
+    
+    if (totalExclusiveRate > 0) {
+      totalTaxAmount += exclusiveTaxAmount;
+    }
+    
+    // Final Grand Total
+    const total = taxableAmount + exclusiveTaxAmount;
+
     // Calculate total paid
     let totalPaid = paid;
     if (payments && Array.isArray(payments) && payments.length > 0) {
@@ -228,7 +261,9 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
         userId: req.user!.id,
         customerId: customerId || null,
         outletId: targetOutletId,
+        subtotal: subtotal,
         total,
+        taxAmount: totalTaxAmount,
         paid: totalPaid,
         change: totalPaid - total,
         discount: totalDiscount,

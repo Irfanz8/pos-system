@@ -1,10 +1,10 @@
 import { createFileRoute, redirect, useNavigate, Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { productsApi, categoriesApi, transactionsApi, customersApi, outletsApi, emailApi, shiftsApi, promosApi } from '../lib/api'
+import { productsApi, categoriesApi, transactionsApi, customersApi, outletsApi, emailApi, shiftsApi, promosApi, taxesApi } from '../lib/api'
 import QRCode from 'react-qr-code'
 import { useAuth } from '../lib/auth'
 import { useState, useEffect } from 'react'
-import { Search, Plus, Minus, Trash2, ShoppingCart, LogOut, CreditCard, Banknote, X, Check, Wifi, WifiOff, CloudOff, RefreshCw, UserPlus, Phone, Store, Clock, Monitor, Ticket, CheckCircle2 } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, LogOut, CreditCard, Banknote, X, Check, Wifi, WifiOff, CloudOff, RefreshCw, UserPlus, Phone, Store, Clock, Monitor, Ticket, CheckCircle2, Printer } from 'lucide-react'
 import { 
   initDB, 
   saveOfflineTransaction, 
@@ -154,6 +154,18 @@ function POSPage() {
   })
   
   const currentOutlet = outlets?.find((o: any) => o.id === outletId)
+
+  // Fetch taxes
+  const { data: taxes } = useQuery({
+    queryKey: ['taxes', outletId],
+    queryFn: async () => {
+      if (!networkOnline || !outletId) return [];
+      try {
+        return (await taxesApi.getAll({ outletId })).data;
+      } catch { return [] }
+    },
+    enabled: networkOnline && !!outletId
+  });
 
   // Fetch products with smart fallback
   const { data: products, isLoading: productsLoading } = useQuery({
@@ -473,22 +485,18 @@ function POSPage() {
             <span>Subtotal</span>
             <span>{formatCurrency(total)}</span>
           </div>
-          <div className="flex justify-between items-center text-xl font-bold text-white mb-4">
-            <span>Total</span>
-            <span>{formatCurrency(total)}</span>
-          </div>
           <button 
             disabled={cart.length === 0} 
             onClick={() => setShowCheckout(true)} 
-            className="w-full btn btn-primary py-3 rounded-xl font-bold text-lg disabled:opacity-50"
+            className="w-full btn btn-primary py-3 rounded-xl font-bold text-lg disabled:opacity-50 mt-2"
           >
             Bayar
           </button>
         </div>
       </div>
 
-      {showCheckout && <CheckoutModal cart={cart} total={cart.reduce((a, b) => a + b.price * b.quantity, 0)} onClose={() => setShowCheckout(false)} onSuccess={handleCheckoutSuccess} online={networkOnline} customerId={customer?.id} customerPoints={customer?.points || 0} outletId={outletId} />}
-      {showReceipt && <ReceiptModal transaction={showReceipt} onClose={() => setShowReceipt(null)} />}
+      {showCheckout && <CheckoutModal cart={cart} subtotal={total} taxes={taxes || []} onClose={() => setShowCheckout(false)} onSuccess={handleCheckoutSuccess} online={networkOnline} customerId={customer?.id} customerPoints={customer?.points || 0} outletId={outletId} />}
+      {showReceipt && <ReceiptModal transaction={showReceipt} taxes={taxes || []} onClose={() => setShowReceipt(null)} />}
       {!outletId && <OutletSelectionModal onSelect={setOutletId} />}
 
       {/* Shift Modal */}
@@ -576,7 +584,7 @@ function OutletSelectionModal({ onSelect }: { onSelect: (id: string) => void }) 
   )
 }
 
-function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, outletId, onClose, onSuccess }: { cart: CartItem[]; total: number; online: boolean; customerId?: string; customerPoints?: number; outletId: string; onClose: () => void; onSuccess: (tx: any, isOffline: boolean) => void }) {
+function CheckoutModal({ cart, subtotal, taxes, online, customerId, customerPoints = 0, outletId, onClose, onSuccess }: { cart: CartItem[]; subtotal: number; taxes: any[]; online: boolean; customerId?: string; customerPoints?: number; outletId: string; onClose: () => void; onSuccess: (tx: any, isOffline: boolean) => void }) {
   const [paid, setPaid] = useState('')
   const [method, setMethod] = useState<'CASH' | 'QRIS'>('CASH')
   const [error, setError] = useState('')
@@ -602,7 +610,7 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
     setIsValidatingPromo(true)
     setPromoError('')
     try {
-      const res = await promosApi.validate({ code: promoCode, total })
+      const res = await promosApi.validate({ code: promoCode, total: subtotal })
       setAppliedPromo(res.data.promo)
       setPromoDiscount(res.data.discount)
     } catch (err: any) {
@@ -620,10 +628,25 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
     setPromoCode('')
   }
   
-  // LOGIKA DISKON BERSUSUN (CASCADING DISCOUNT): Subtotal -> Promo -> Points
-  const totalAfterPromo = Math.max(0, total - promoDiscount)
+  // LOGIKA DISKON BERSUSUN & PAJAK
+  const totalAfterPromo = Math.max(0, subtotal - promoDiscount)
   const pointDiscount = redeemedPoints * 100
-  const finalTotal = Math.max(0, totalAfterPromo - pointDiscount)
+  const totalDiscount = promoDiscount + pointDiscount
+  const taxableAmount = Math.max(0, subtotal - totalDiscount)
+  
+  let totalInclusiveRate = 0
+  let totalExclusiveRate = 0
+  taxes.filter(t => t.isActive).forEach(t => {
+    if (t.type === 'INCLUSIVE') totalInclusiveRate += t.rate
+    if (t.type === 'EXCLUSIVE') totalExclusiveRate += t.rate
+  })
+
+  const baseAmountWithoutInclusive = totalInclusiveRate > 0 
+    ? taxableAmount / (1 + (totalInclusiveRate / 100)) 
+    : taxableAmount
+    
+  const exclusiveTaxAmount = baseAmountWithoutInclusive * (totalExclusiveRate / 100)
+  const finalTotal = taxableAmount + exclusiveTaxAmount
   
   const paidNum = parseFloat(paid) || 0
   const change = paidNum - finalTotal
@@ -714,11 +737,39 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
           {error && <div className="p-3 bg-red-500/20 text-red-400 rounded-lg text-sm">{error}</div>}
           
           <div className="text-center py-4 bg-slate-900/50 rounded-xl mb-4 border border-slate-700">
-            <p className="text-slate-400">Subtotal: {formatCurrency(total)}</p>
-            {promoDiscount > 0 && <p className="text-emerald-400 text-sm">Diskon Promo: -{formatCurrency(promoDiscount)}</p>}
-            {redeemedPoints > 0 && <p className="text-yellow-400 text-sm">Tukar Poin: -{formatCurrency(redeemedPoints * 100)}</p>}
-            <p className="text-5xl font-bold text-white mt-3">{formatCurrency(finalTotal)}</p>
-            <p className="text-xs text-slate-500 mt-2">Total Tagihan (Grand Total)</p>
+            <div className="flex justify-between items-center text-slate-400 px-4 text-sm mb-1">
+              <span>Subtotal:</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            {promoDiscount > 0 && (
+              <div className="flex justify-between items-center text-emerald-400 px-4 text-sm mb-1">
+                <span>Diskon Promo:</span>
+                <span>-{formatCurrency(promoDiscount)}</span>
+              </div>
+            )}
+            {redeemedPoints > 0 && (
+              <div className="flex justify-between items-center text-yellow-400 px-4 text-sm mb-1">
+                <span>Tukar {redeemedPoints} Poin:</span>
+                <span>-{formatCurrency(pointDiscount)}</span>
+              </div>
+            )}
+            {exclusiveTaxAmount > 0 && (
+              <div className="border-t border-slate-700 pt-1 mt-1">
+                {taxes.filter(t => t.isActive && t.type === 'EXCLUSIVE').map((t, idx) => {
+                  const amount = baseAmountWithoutInclusive * (t.rate / 100);
+                  return (
+                    <div key={idx} className="flex justify-between items-center text-orange-400 px-4 text-sm mt-1">
+                      <span>{t.name} ({t.rate}%)</span>
+                      <span>+{formatCurrency(amount)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="mt-3 pt-3 border-t border-slate-700 mx-4">
+               <p className="text-4xl font-bold text-white">{formatCurrency(finalTotal)}</p>
+               <p className="text-xs text-slate-500 mt-1">Total Tagihan (Grand Total)</p>
+            </div>
           </div>
           
           <div className="space-y-3 mb-4">
@@ -812,7 +863,7 @@ function CheckoutModal({ cart, total, online, customerId, customerPoints = 0, ou
   )
 }
 
-function ReceiptModal({ transaction, onClose }: { transaction: any; onClose: () => void }) {
+function ReceiptModal({ transaction, taxes = [], onClose }: { transaction: any; taxes?: any[]; onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [showEmailInput, setShowEmailInput] = useState(false)
@@ -847,65 +898,129 @@ function ReceiptModal({ transaction, onClose }: { transaction: any; onClose: () 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
-        <div className="p-6 text-center border-b">
-          <div className={`w-16 h-16 ${isOffline ? 'bg-yellow-100' : 'bg-emerald-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
-            {isOffline ? <CloudOff className="w-8 h-8 text-yellow-600" /> : <Check className="w-8 h-8 text-emerald-600" />}
-          </div>
-          <h2 className="text-xl font-bold text-slate-800">
-            {isOffline ? 'Tersimpan Offline' : 'Transaksi Berhasil!'}
-          </h2>
-          {isOffline && <p className="text-sm text-yellow-600 mt-1">Akan sync saat online</p>}
-        </div>
-        
-        <div className="p-6 space-y-4">
-          <div className="text-center mb-4">
-            <p className="text-slate-500">Total</p>
-            <p className="text-3xl font-bold text-slate-800">{formatCurrency(transaction.total)}</p>
+        {/* We use print-area class so that only this part is visible when window.print() is called. */}
+        <div className="print-area bg-white p-6 sm:p-0">
+          <div className="p-6 text-center border-b">
+            <div className={`w-16 h-16 ${isOffline ? 'bg-yellow-100' : 'bg-emerald-100'} rounded-full flex items-center justify-center mx-auto mb-4 no-print`}>
+              {isOffline ? <CloudOff className="w-8 h-8 text-yellow-600" /> : <Check className="w-8 h-8 text-emerald-600" />}
+            </div>
+            <h2 className="text-xl font-bold text-slate-800">
+              {isOffline ? 'Tersimpan Offline' : 'Transaksi Berhasil!'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 font-mono hidden print:block">
+              {transaction.outlet?.name || 'Toko Kami'}
+            </p>
+            {isOffline && <p className="text-sm text-yellow-600 mt-1 no-print">Akan sync saat online</p>}
           </div>
           
-          <div className="space-y-2 border-b pb-4">
-            <div className="flex justify-between text-sm"><span className="text-slate-500">No. Struk</span><span className="font-mono text-xs">{transaction.receiptNo || transaction.id}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-slate-500">Bayar</span><span>{formatCurrency(transaction.paid)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-slate-500">Kembalian</span><span className="text-emerald-600 font-semibold">{formatCurrency(transaction.change)}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-slate-500">Metode</span><span>{transaction.paymentMethod}</span></div>
-          </div>
+          <div className="p-6 space-y-4">
+            <div className="text-center mb-4">
+              <p className="text-slate-500 text-sm">Total</p>
+              <p className="text-3xl font-bold text-slate-800">{formatCurrency(transaction.total)}</p>
+            </div>
+            
+            <div className="space-y-2 border-b pb-4">
+              <div className="flex justify-between text-sm"><span className="text-slate-500">No. Struk</span><span className="font-mono text-xs text-slate-800">{transaction.receiptNo || transaction.id}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Tanggal</span><span className="text-xs text-slate-800">{new Date(transaction.date || transaction.createdAt || Date.now()).toLocaleString('id-ID')}</span></div>
+            </div>
 
-          {!isOffline && validTxId && (
-            <div className="space-y-4 pt-2">
-              <div className="flex justify-center">
-                 <div className="bg-white p-2 rounded-lg border">
-                   <QRCode value={receiptUrl || ''} size={128} />
-                 </div>
-              </div>
-              <p className="text-center text-xs text-slate-400">Scan untuk struk digital</p>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleWhatsApp} className="btn btn-secondary flex items-center justify-center gap-2 text-emerald-600 hover:bg-emerald-50">
-                  <span className="text-lg">💬</span> WhatsApp
-                </button>
-                <button onClick={() => setShowEmailInput(!showEmailInput)} className="btn btn-secondary flex items-center justify-center gap-2 text-blue-600 hover:bg-blue-50">
-                  <span className="text-lg">✉️</span> Email
-                </button>
-              </div>
+            <div className="space-y-3 py-4 border-b border-dashed border-slate-300">
+              {(transaction.items || []).map((item: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <div>
+                    <p className="font-medium text-slate-800">{item.product?.name || item.name || 'Produk'}</p>
+                    <p className="text-xs text-slate-500">{item.quantity} x {formatCurrency(item.price || (item.product?.price || 0))}</p>
+                  </div>
+                  <p className="font-medium text-slate-800">{formatCurrency(item.quantity * (item.price || (item.product?.price || 0)))}</p>
+                </div>
+              ))}
+            </div>
 
-              {showEmailInput && (
-                <div className="flex gap-2">
-                  <input 
-                    type="email" 
-                    placeholder="Email pelanggan" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input text-sm"
-                  />
-                  <button onClick={handleSendEmail} disabled={sendingEmail || !email} className="btn btn-primary px-3">
-                    {sendingEmail ? '...' : 'Kirim'}
-                  </button>
+            <div className="space-y-2 pt-2 pb-4 border-b">
+              {transaction.discount > 0 && (
+                <div className="flex justify-between text-sm text-emerald-600">
+                  <span>Diskon</span>
+                  <span>-{formatCurrency(transaction.discount)}</span>
                 </div>
               )}
+              {transaction.taxAmount > 0 ? (
+                (taxes && taxes.filter((t:any) => t.type === 'EXCLUSIVE').length > 0) ? (
+                  taxes.filter((t:any) => t.type === 'EXCLUSIVE').map((t: any, idx: number) => {
+                    const exclusiveTaxes = taxes.filter((tx:any) => tx.type === 'EXCLUSIVE');
+                    const totalExclusiveRate = exclusiveTaxes.reduce((sum:number, tx:any) => sum + tx.rate, 0);
+                    const amount = totalExclusiveRate > 0 ? transaction.taxAmount * (t.rate / totalExclusiveRate) : 0;
+                    return (
+                      <div key={idx} className="flex justify-between text-sm text-orange-500">
+                        <span>{t.name}</span>
+                        <span>{formatCurrency(amount)}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="flex justify-between text-sm text-orange-500">
+                    <span>Pajak Tambahan</span>
+                    <span>{formatCurrency(transaction.taxAmount)}</span>
+                  </div>
+                )
+              ) : null}
+              <div className="flex justify-between text-base font-bold text-slate-800 pt-2 border-t mt-2">
+                <span>Total Tagihan</span>
+                <span>{formatCurrency(transaction.total)}</span>
+              </div>
+              <div className="flex justify-between text-sm pt-2"><span className="text-slate-500">Bayar ({transaction.paymentMethod})</span><span className="text-slate-800">{formatCurrency(transaction.paid)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Kembalian</span><span className="text-slate-800">{formatCurrency(transaction.change)}</span></div>
             </div>
-          )}
-          
-          <button onClick={onClose} className="w-full bg-slate-800 text-white py-3 rounded-lg font-medium">Selesai</button>
+
+            {/* Print Only Footer for Thermal Printer */}
+            <div className="hidden print:block text-center mt-6">
+              <p className="text-xs text-slate-500">Terima kasih atas kunjungan Anda!</p>
+              <p className="text-[10px] text-slate-400 mt-1 pb-8">Powered by POS System</p>
+            </div>
+
+            {!isOffline && validTxId && (
+              <div className="space-y-4 pt-2 no-print">
+                <div className="flex justify-center">
+                   <div className="bg-white p-2 rounded-lg border">
+                     <QRCode value={receiptUrl || ''} size={128} />
+                   </div>
+                </div>
+                <p className="text-center text-xs text-slate-400">Scan untuk struk digital</p>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleWhatsApp} className="btn btn-secondary flex items-center justify-center gap-2 text-emerald-600 hover:bg-emerald-50">
+                    <span className="text-lg">💬</span> WhatsApp
+                  </button>
+                  <button onClick={() => setShowEmailInput(!showEmailInput)} className="btn btn-secondary flex items-center justify-center gap-2 text-blue-600 hover:bg-blue-50">
+                    <span className="text-lg">✉️</span> Email
+                  </button>
+                </div>
+
+                {showEmailInput && (
+                  <div className="flex gap-2">
+                    <input 
+                      type="email" 
+                      placeholder="Email pelanggan" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="input text-sm"
+                    />
+                    <button onClick={handleSendEmail} disabled={sendingEmail || !email} className="btn btn-primary px-3">
+                      {sendingEmail ? '...' : 'Kirim'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-2 mt-4 no-print">
+               <button onClick={() => window.print()} className="w-full btn btn-secondary py-3 flex items-center justify-center gap-2">
+                 <Printer className="w-5 h-5" /> Cetak
+               </button>
+               <button onClick={onClose} className="w-full bg-slate-800 hover:bg-slate-700 transition text-white py-3 rounded-lg font-medium">
+                 Selesai
+               </button>
+            </div>
+          </div>
         </div>
       </div>
       <AlertModal message={alertMsg} onClose={() => setAlertMsg('')} />

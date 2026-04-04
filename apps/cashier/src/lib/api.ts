@@ -63,3 +63,7 @@ export const shiftsApi = {
   clockOut: (cashEnd: number) => api.post('/shifts/clock-out', { cashEnd }),
   getCurrent: () => api.get('/shifts/current'),
 };
+
+export const taxesApi = {
+  getAll: (params?: { outletId?: string }) => api.get('/taxes', { params }),
+};
