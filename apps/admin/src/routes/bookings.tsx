@@ -140,7 +140,6 @@ function SettlementModal({ booking, onClose, onSuccess }: { booking: any; onClos
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 function BookingsPage() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [searchTerm, setSearchTerm] = useState('');
   const [settlingBooking, setSettlingBooking] = useState<any>(null);

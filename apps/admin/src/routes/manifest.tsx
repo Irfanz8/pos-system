@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
-import { id } from 'date-fns/locale'
-import { Calendar as CalendarIcon, Clock, Users, FileText, CheckCircle2, Ticket, Printer, Compass } from 'lucide-react'
+import { Clock, Users, FileText, CheckCircle2, Ticket, Printer, Compass } from 'lucide-react'
 import { bookingsApi } from '../lib/api'
 import { useAuth } from '../lib/auth'
 
