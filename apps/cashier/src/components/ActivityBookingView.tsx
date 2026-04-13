@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast, { Toaster } from 'react-hot-toast';
-import { AlertCircle, Plus, Calendar as CalendarIcon, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Plus, Calendar as CalendarIcon, AlertTriangle, RefreshCw } from 'lucide-react';
 
 import { activitiesApi, bookingsApi } from '../lib/api';
 import { PackageSelector } from './booking/PackageSelector';
@@ -65,7 +65,7 @@ export function ActivityBookingView({ outletId, onSuccess }: { outletId: string,
   const paxAdult = watch('paxAdult');
   const paxChild = watch('paxChild');
 
-  const { data: packages, isLoading: loadingPackages } = useQuery({
+  const { data: packages } = useQuery({
     queryKey: ['activities', outletId],
     queryFn: async () => (await activitiesApi.getAll({ outletId })).data,
   });
@@ -143,7 +143,7 @@ export function ActivityBookingView({ outletId, onSuccess }: { outletId: string,
 
   return (
     <div className="flex flex-col h-full bg-slate-900 relative">
-      <Toaster position="top-center" theme="dark" />
+      <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' } }} />
       
       {/* Sub Header for Tabs Navigation */}
       <div className="flex px-4 py-3 bg-slate-900 border-b border-slate-800 gap-2 sticky top-0 z-20">

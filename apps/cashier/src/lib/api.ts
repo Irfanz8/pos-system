@@ -76,6 +76,7 @@ export const activitiesApi = {
 export const bookingsApi = {
   create: (data: any) => api.post('/bookings', data),
   settle: (id: string, data: { amountPaid: number; paymentMethod: string }) => api.put(`/bookings/${id}/settle`, data),
+  checkin: (id: string) => api.put(`/bookings/${id}/checkin`),
   getAll: (params?: any) => api.get('/bookings', { params }),
   getById: (id: string) => api.get(`/bookings/${id}`),
 };

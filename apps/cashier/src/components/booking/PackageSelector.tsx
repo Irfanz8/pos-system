@@ -14,7 +14,7 @@ interface PackageSelectorProps {
 
 const formatCurrency = (v: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
 
-export function PackageSelector({ register, errors, packages, selectedDate, selectedPackageId, onDateChange, onPackageChange, setValue }: PackageSelectorProps) {
+export function PackageSelector({ register, errors, packages, selectedDate, selectedPackageId, onDateChange, onPackageChange }: PackageSelectorProps) {
   
   // Helper for quick date buttons
   const getOffsetDate = (days: number) => {

@@ -30,7 +30,7 @@ export function BookingCalendar({ outletId }: { outletId: string }) {
   });
 
   const checkinMutation = useMutation({
-    mutationFn: async (id: string) => bookingsApi.settle(id, 'bypass-no-balance'),
+    mutationFn: async (id: string) => bookingsApi.checkin(id),
     onSuccess: () => {
         toast.success('Tamu berhasil Check-in!');
         queryClient.invalidateQueries({ queryKey: ['bookings_schedule'] });
