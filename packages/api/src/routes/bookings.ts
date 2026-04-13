@@ -63,7 +63,8 @@ bookingsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     let randomSuffix = Math.floor(1000 + Math.random() * 9000); // Wait, better collision prevention logic
     const bookingCode = `BOK-${dateStr}-${randomSuffix}-${Date.now().toString().slice(-4)}`;
     
-    const balanceDue = totalAmount - depositPaid;
+    const clampedDeposit = Math.min(depositPaid, totalAmount);
+    const balanceDue = totalAmount - clampedDeposit;
     
     // We execute the whole logic in a Prisma Transaction to ensure Data Consistency
     const result = await prisma.$transaction(async (tx) => {
@@ -92,11 +93,11 @@ bookingsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
            activityPackageId,
            sessionTimeId: finalSessionTimeId,
            bookingDate: new Date(bookingDate),
-           status: depositPaid > 0 ? 'CONFIRMED' : 'DRAFT', // Or whatever logic you prefer
+           status: clampedDeposit > 0 ? (balanceDue <= 0 ? 'COMPLETED' : 'CONFIRMED') : 'DRAFT',
            paxAdult,
            paxChild,
            totalAmount,
-           depositPaid,
+           depositPaid: clampedDeposit,
            balanceDue,
            customerId,
            guestName,
@@ -108,7 +109,7 @@ bookingsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
 
        // Create the POS Transaction if DP > 0 directly here instead of sequentially in Frontend
        let posTransaction: any = null;
-       if (depositPaid > 0) {
+       if (clampedDeposit > 0) {
           // Verify Outlet based on Activity/User logic. Assume user has outletId from req or ActivityPackage has it.
           const packageActivity = await tx.activityPackage.findUnique({ where: { id: activityPackageId } });
           const outletIdToUse = packageActivity?.outletId;
@@ -135,26 +136,26 @@ bookingsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
                   userId: req.user!.id,
                   customerId: customerId || null,
                   outletId: outletIdToUse,
-                  subtotal: depositPaid,
-                  total: depositPaid,
-                  paid: depositPaid,
+                  subtotal: clampedDeposit,
+                  total: clampedDeposit,
+                  paid: clampedDeposit,
                   change: 0,
-                  taxAmount: 0, // Assumption DP is net or tax included in package
+                  taxAmount: 0,
                   discount: 0,
-                  paymentMethod: 'CASH', // In real app, we should pass chosen payment method
+                  paymentMethod: 'CASH',
                   receiptNo,
                   status: 'COMPLETED',
                   items: {
                       create: [{
                           productId: 'DP_BOOKING',
                           quantity: 1,
-                          price: depositPaid,
+                          price: clampedDeposit,
                           discount: 0,
-                          subtotal: depositPaid
+                          subtotal: clampedDeposit
                       }]
                   },
                   payments: {
-                      create: [{ method: 'CASH', amount: depositPaid }]
+                      create: [{ method: 'CASH', amount: clampedDeposit }]
                   }
               }
           });

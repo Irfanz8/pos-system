@@ -16,6 +16,7 @@ export function CartSummary({ watch, setValue, currentPrice, currentChildPrice, 
   const paxAdult = watch('paxAdult') || 1;
   const paxChild = watch('paxChild') || 0;
   const dpAmount = watch('depositPaid') || 0;
+  const balanceDue = Math.max(0, totalAmount - dpAmount);
 
   return (
     <div className="w-full md:w-96 bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col">
@@ -50,8 +51,8 @@ export function CartSummary({ watch, setValue, currentPrice, currentChildPrice, 
                >Bayar Nanti</button>
                <button 
                  type="button" 
-                 onClick={() => setValue('depositPaid', totalAmount * 0.5)} 
-                 className={`p-2 rounded text-sm transition-colors border ${totalAmount > 0 && dpAmount === (totalAmount * 0.5) ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                 onClick={() => setValue('depositPaid', Math.round(totalAmount * 0.5))} 
+                 className={`p-2 rounded text-sm transition-colors border ${totalAmount > 0 && dpAmount === Math.round(totalAmount * 0.5) ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'}`}
                >DP 50%</button>
                <button 
                  type="button" 
@@ -63,9 +64,30 @@ export function CartSummary({ watch, setValue, currentPrice, currentChildPrice, 
                 type="number" 
                 placeholder="Atau ketik nominal manual" 
                 value={dpAmount || ''} 
-                onChange={e => setValue('depositPaid', parseFloat(e.target.value) || 0)} 
+                min={0}
+                max={totalAmount}
+                onChange={e => {
+                  const val = Math.min(Math.max(parseFloat(e.target.value) || 0, 0), totalAmount);
+                  setValue('depositPaid', val);
+                }}
                 className="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg text-white" 
              />
+
+             {/* Live DP & Sisa Tagihan Summary */}
+             {totalAmount > 0 && (
+               <div className="mt-3 p-3 rounded-lg bg-slate-900/80 border border-slate-700 space-y-1.5 text-sm">
+                 <div className="flex justify-between text-slate-400">
+                   <span>DP Dibayar Sekarang</span>
+                   <span className="text-emerald-400 font-bold">{formatCurrency(dpAmount)}</span>
+                 </div>
+                 <div className="flex justify-between text-slate-400">
+                   <span>Sisa Tagihan</span>
+                   <span className={`font-bold ${balanceDue <= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                     {balanceDue <= 0 ? '✓ LUNAS' : formatCurrency(balanceDue)}
+                   </span>
+                 </div>
+               </div>
+             )}
           </div>
        </div>
 
