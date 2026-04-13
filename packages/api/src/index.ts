@@ -18,6 +18,11 @@ import { aiRouter } from './routes/ai.js';
 import { shiftsRouter } from './routes/shifts.js';
 import { kdsRouter } from './routes/kds.js';
 import { taxesRouter } from './routes/taxes.js';
+import { activitiesRouter } from './routes/activities.js';
+import { bookingsRouter } from './routes/bookings.js';
+import { manifestRouter } from './routes/manifest.js';
+import { guidesRouter } from './routes/guides.js';
+import { waiverRouter } from './routes/waiver.js';
 import { prisma } from './lib/prisma.js';
 
 dotenv.config();
@@ -49,6 +54,11 @@ app.use('/api/email', emailRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/shifts', shiftsRouter);
 app.use('/api/taxes', taxesRouter);
+app.use('/api/activities', activitiesRouter);
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/manifest', manifestRouter);
+app.use('/api/guides', guidesRouter);
+app.use('/api/waiver', waiverRouter);
 
 // Global Error Handler for debugging Serverless environments
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

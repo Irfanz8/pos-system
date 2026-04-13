@@ -107,6 +107,93 @@ async function main() {
   }
   console.log("✅ Products and Stock created");
 
+  // 6. Create Guides
+  await Promise.all([
+    prisma.guide.upsert({
+      where: { id: "guide-1" },
+      update: {},
+      create: { id: "guide-1", name: "Budi Santoso", phone: "0811111111", isActive: true, outletId: mainOutlet.id }
+    }),
+    prisma.guide.upsert({
+      where: { id: "guide-2" },
+      update: {},
+      create: { id: "guide-2", name: "Agus Riyadi", phone: "0822222222", isActive: true, outletId: mainOutlet.id }
+    })
+  ]);
+  console.log("✅ Guides created");
+
+  // 7. Create Activity Packages
+  const pkg1 = await prisma.activityPackage.upsert({
+    where: { id: "pkg-rafting-1" },
+    update: {},
+    create: {
+      id: "pkg-rafting-1",
+      name: "Rafting Sungai Ayung",
+      description: "Pengalaman seru menyusuri sungai Ayung dengan jeram kelas 2-3.",
+      basePrice: 250000,
+      childPrice: 200000,
+      maxCapacity: 30,
+      durationMinutes: 120,
+      outletId: mainOutlet.id,
+    }
+  });
+
+  const pkg2 = await prisma.activityPackage.upsert({
+    where: { id: "pkg-atv-1" },
+    update: {},
+    create: {
+      id: "pkg-atv-1",
+      name: "ATV Jungle Trek",
+      description: "Jelajahi hutan tropis menyusuri trek menantang menggunakan ATV.",
+      basePrice: 350000,
+      childPrice: 300000,
+      maxCapacity: 20,
+      durationMinutes: 90,
+      outletId: mainOutlet.id,
+    }
+  });
+  console.log("✅ Activity Packages created");
+
+  // 8. Create Session Times
+  await Promise.all([
+    // Sessions for Rafting
+    prisma.sessionTime.upsert({
+      where: { id: "sess-rafting-morning" },
+      update: {},
+      create: {
+        id: "sess-rafting-morning",
+        activityPackageId: pkg1.id,
+        startTime: "09:00",
+        label: "Pagi",
+        capacityOverride: null
+      }
+    }),
+    prisma.sessionTime.upsert({
+      where: { id: "sess-rafting-afternoon" },
+      update: {},
+      create: {
+        id: "sess-rafting-afternoon",
+        activityPackageId: pkg1.id,
+        startTime: "13:00",
+        label: "Siang",
+        capacityOverride: null
+      }
+    }),
+    // Sessions for ATV
+    prisma.sessionTime.upsert({
+      where: { id: "sess-atv-morning" },
+      update: {},
+      create: {
+        id: "sess-atv-morning",
+        activityPackageId: pkg2.id,
+        startTime: "10:00",
+        label: "Pagi",
+        capacityOverride: null
+      }
+    }),
+  ]);
+  console.log("✅ Session Times created");
+
   console.log("🎉 Seed completed!");
   console.log("👤 Admin: admin@pos.com / admin123");
   console.log("👤 Kasir: kasir@pos.com / kasir123");

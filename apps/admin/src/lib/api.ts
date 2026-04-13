@@ -137,6 +137,21 @@ export const aiApi = {
   getAnomalies: (outletId?: string) => api.get('/ai/anomalies', { params: { outletId } }),
 };
 
+// Activities (Tour & Booking)
+export const activitiesApi = {
+  getAll: (params?: { outletId?: string }) => api.get('/activities', { params }),
+  create: (data: any) => api.post('/activities', data),
+};
+
+// Bookings (Activity Reservations)
+export const bookingsApi = {
+  getAll: (params?: { outletId?: string; date?: string; startDate?: string; endDate?: string }) =>
+    api.get('/bookings', { params }),
+  getById: (id: string) => api.get(`/bookings/${id}`),
+  settle: (id: string, data: { amountPaid: number; paymentMethod: string }) =>
+    api.put(`/bookings/${id}/settle`, data),
+};
+
 // Taxes
 export const taxesApi = {
   getAll: (params?: { outletId?: string }) => api.get('/taxes', { params }),

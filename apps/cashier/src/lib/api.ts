@@ -67,3 +67,15 @@ export const shiftsApi = {
 export const taxesApi = {
   getAll: (params?: { outletId?: string }) => api.get('/taxes', { params }),
 };
+
+export const activitiesApi = {
+  getAll: (params?: any) => api.get('/activities', { params }),
+  getAvailability: (id: string, date: string) => api.get(`/activities/${id}/availability`, { params: { date } })
+};
+
+export const bookingsApi = {
+  create: (data: any) => api.post('/bookings', data),
+  settle: (id: string, data: { amountPaid: number; paymentMethod: string }) => api.put(`/bookings/${id}/settle`, data),
+  getAll: (params?: any) => api.get('/bookings', { params }),
+  getById: (id: string) => api.get(`/bookings/${id}`),
+};

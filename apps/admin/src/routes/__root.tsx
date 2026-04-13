@@ -17,6 +17,10 @@ import {
   Brain,
   Clock,
   Receipt,
+  Compass,
+  CalendarDays,
+  FileCheck,
+  UserCheck
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -38,10 +42,14 @@ function RootComponent() {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/products', label: 'Produk', icon: Package },
+    { to: '/activities', label: 'Paket Wisata', icon: Compass },
+    { to: '/manifest', label: 'Manifest Harian', icon: CalendarDays },
+    { to: '/bookings', label: 'Semua Reservasi', icon: FileCheck },
+    { to: '/guides', label: 'Pemandu / Guide', icon: UserCheck },
+    { to: '/products', label: 'Produk F&B/Retail', icon: Package },
     { to: '/categories', label: 'Kategori', icon: Tags },
     { to: '/stock', label: 'Stok', icon: Warehouse },
-    { to: '/transactions', label: 'Transaksi', icon: ShoppingCart },
+    { to: '/transactions', label: 'Transaksi Retail', icon: ShoppingCart },
     { to: '/customers', label: 'Pelanggan', icon: Heart },
     { to: '/promos', label: 'Promo', icon: Ticket },
     { to: '/users', label: 'Pengguna', icon: Users },

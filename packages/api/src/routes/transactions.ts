@@ -159,7 +159,7 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     
     // Validate stock per outlet
     for (const item of items) {
-      if (item.productId) { 
+      if (item.productId && item.productId !== 'DP_BOOKING') { 
          const productStock = await prisma.productStock.findUnique({
             where: {
                 productId_outletId: {
@@ -181,7 +181,23 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     const transactionItems = [];
 
     for (const item of items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      let product = null;
+
+      if (item.productId === 'DP_BOOKING') {
+        product = await prisma.product.findUnique({ where: { id: 'DP_BOOKING' } });
+        if (!product) {
+          let cat = await prisma.category.findFirst();
+          if (!cat) cat = await prisma.category.create({ data: { name: 'Others' } });
+          product = await prisma.product.create({
+            data: { id: 'DP_BOOKING', sku: 'DP_BOOKING', name: 'Booking Deposit', price: 0, categoryId: cat.id }
+          });
+        }
+        // Use frontend price
+        product.price = item.price || 0;
+      } else {
+        product = await prisma.product.findUnique({ where: { id: item.productId } });
+      }
+
       if (!product) continue;
       
       const itemDiscount = item.discount || 0;
@@ -189,7 +205,7 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
       subtotal += itemSubtotal;
       
       transactionItems.push({
-        productId: item.productId,
+        productId: product.id,
         quantity: item.quantity,
         price: product.price,
         discount: itemDiscount,
@@ -288,6 +304,8 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     
     // Update Stock (ProductStock) & History
     for (const item of items) {
+       if (item.productId === 'DP_BOOKING') continue;
+
        await prisma.productStock.upsert({
           where: { productId_outletId: { productId: item.productId, outletId: targetOutletId } },
           update: { stock: { decrement: item.quantity } },

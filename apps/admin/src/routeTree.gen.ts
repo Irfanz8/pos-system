@@ -18,10 +18,14 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PromosRouteImport } from './routes/promos'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OutletsRouteImport } from './routes/outlets'
+import { Route as ManifestRouteImport } from './routes/manifest'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as GuidesRouteImport } from './routes/guides'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as AiInsightsRouteImport } from './routes/ai-insights'
+import { Route as ActivitiesRouteImport } from './routes/activities'
 import { Route as IndexRouteImport } from './routes/index'
 
 const UsersRoute = UsersRouteImport.update({
@@ -69,9 +73,19 @@ const OutletsRoute = OutletsRouteImport.update({
   path: '/outlets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManifestRoute = ManifestRouteImport.update({
+  id: '/manifest',
+  path: '/manifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuidesRoute = GuidesRouteImport.update({
+  id: '/guides',
+  path: '/guides',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomersRoute = CustomersRouteImport.update({
@@ -84,9 +98,19 @@ const CategoriesRoute = CategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookingsRoute = BookingsRouteImport.update({
+  id: '/bookings',
+  path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AiInsightsRoute = AiInsightsRouteImport.update({
   id: '/ai-insights',
   path: '/ai-insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivitiesRoute = ActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -97,10 +121,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activities': typeof ActivitiesRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/bookings': typeof BookingsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
+  '/manifest': typeof ManifestRoute
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
@@ -113,10 +141,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activities': typeof ActivitiesRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/bookings': typeof BookingsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
+  '/manifest': typeof ManifestRoute
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
@@ -130,10 +162,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activities': typeof ActivitiesRoute
   '/ai-insights': typeof AiInsightsRoute
+  '/bookings': typeof BookingsRoute
   '/categories': typeof CategoriesRoute
   '/customers': typeof CustomersRoute
+  '/guides': typeof GuidesRoute
   '/login': typeof LoginRoute
+  '/manifest': typeof ManifestRoute
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
@@ -148,10 +184,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activities'
     | '/ai-insights'
+    | '/bookings'
     | '/categories'
     | '/customers'
+    | '/guides'
     | '/login'
+    | '/manifest'
     | '/outlets'
     | '/products'
     | '/promos'
@@ -164,10 +204,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/activities'
     | '/ai-insights'
+    | '/bookings'
     | '/categories'
     | '/customers'
+    | '/guides'
     | '/login'
+    | '/manifest'
     | '/outlets'
     | '/products'
     | '/promos'
@@ -180,10 +224,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activities'
     | '/ai-insights'
+    | '/bookings'
     | '/categories'
     | '/customers'
+    | '/guides'
     | '/login'
+    | '/manifest'
     | '/outlets'
     | '/products'
     | '/promos'
@@ -197,10 +245,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivitiesRoute: typeof ActivitiesRoute
   AiInsightsRoute: typeof AiInsightsRoute
+  BookingsRoute: typeof BookingsRoute
   CategoriesRoute: typeof CategoriesRoute
   CustomersRoute: typeof CustomersRoute
+  GuidesRoute: typeof GuidesRoute
   LoginRoute: typeof LoginRoute
+  ManifestRoute: typeof ManifestRoute
   OutletsRoute: typeof OutletsRoute
   ProductsRoute: typeof ProductsRoute
   PromosRoute: typeof PromosRoute
@@ -277,11 +329,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutletsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/manifest': {
+      id: '/manifest'
+      path: '/manifest'
+      fullPath: '/manifest'
+      preLoaderRoute: typeof ManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guides': {
+      id: '/guides'
+      path: '/guides'
+      fullPath: '/guides'
+      preLoaderRoute: typeof GuidesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customers': {
@@ -298,11 +364,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bookings': {
+      id: '/bookings'
+      path: '/bookings'
+      fullPath: '/bookings'
+      preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ai-insights': {
       id: '/ai-insights'
       path: '/ai-insights'
       fullPath: '/ai-insights'
       preLoaderRoute: typeof AiInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activities': {
+      id: '/activities'
+      path: '/activities'
+      fullPath: '/activities'
+      preLoaderRoute: typeof ActivitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -317,10 +397,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivitiesRoute: ActivitiesRoute,
   AiInsightsRoute: AiInsightsRoute,
+  BookingsRoute: BookingsRoute,
   CategoriesRoute: CategoriesRoute,
   CustomersRoute: CustomersRoute,
+  GuidesRoute: GuidesRoute,
   LoginRoute: LoginRoute,
+  ManifestRoute: ManifestRoute,
   OutletsRoute: OutletsRoute,
   ProductsRoute: ProductsRoute,
   PromosRoute: PromosRoute,

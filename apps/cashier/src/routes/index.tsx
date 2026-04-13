@@ -16,6 +16,7 @@ import {
   getUnsyncedCount,
 } from '../lib/offline-db'
 import { initSyncService, addSyncListener, autoSync } from '../lib/sync-service'
+import { ActivityBookingView } from '../components/ActivityBookingView'
 
 export const Route = createFileRoute('/')({
   beforeLoad: ({ context }) => { if (!context.auth.isAuthenticated) throw redirect({ to: '/login' }) },
@@ -34,6 +35,7 @@ function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCheckout, setShowCheckout] = useState(false)
   const [showReceipt, setShowReceipt] = useState<any>(null)
+  const [appMode, setAppMode] = useState<'RETAIL' | 'BOOKING'>('RETAIL')
 
   // Customer lookup
   const [customerPhone, setCustomerPhone] = useState('')
@@ -301,6 +303,12 @@ function POSPage() {
             </div>
           </div>
           
+          {/* Mode Switcher */}
+          <div className="flex bg-slate-800 p-1 rounded-lg ml-4">
+            <button onClick={() => setAppMode('RETAIL')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${appMode === 'RETAIL' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-300'}`}>Retail</button>
+            <button onClick={() => setAppMode('BOOKING')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${appMode === 'BOOKING' ? 'bg-blue-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-300'}`}>Wisata</button>
+          </div>
+          
           {/* Status Indicators */}
           <div className="flex items-center gap-2">
             {/* Online/Offline Badge */}
@@ -363,41 +371,50 @@ function POSPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          <button onClick={() => setCategoryId('')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${!categoryId ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>Semua</button>
-          {categories?.map((cat: any) => (
-            <button key={cat.id} onClick={() => setCategoryId(cat.id)} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${categoryId === cat.id ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>{cat.name}</button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto pr-2">
-          {productsLoading ? (
-            <p className="text-slate-400 col-span-full text-center py-10">Memuat produk...</p>
-          ) : products?.map((product: any) => (
-            <div 
-              key={product.id} 
-              onClick={() => product.stock > 0 && addToCart(product)} 
-              className={`bg-slate-800 p-4 rounded-xl transition-colors group ${product.stock <= 0 ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-slate-700'}`}
-            >
-              <div className="aspect-square bg-slate-700 rounded-lg mb-3 overflow-hidden relative">
-                 {product.image ? (
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src = 'https://placehold.co/100?text=No+Image'} />
-                 ) : (
-                    <div className="flex items-center justify-center h-full text-slate-500 text-xs">No Image</div>
-                 )}
-                 {/* Stock Indicator */}
-                 <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-sm">
-                    Stok: {product.stock !== undefined ? product.stock : 0}
-                 </div>
-              </div>
-              <h3 className="font-medium text-slate-200 group-hover:text-emerald-400 truncate">{product.name}</h3>
-              <p className="text-emerald-400 font-bold">{formatCurrency(product.price)}</p>
+        {appMode === 'RETAIL' ? (
+          <>
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+              <button onClick={() => setCategoryId('')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${!categoryId ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>Semua</button>
+              {categories?.map((cat: any) => (
+                <button key={cat.id} onClick={() => setCategoryId(cat.id)} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${categoryId === cat.id ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>{cat.name}</button>
+              ))}
             </div>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto pr-2">
+              {productsLoading ? (
+                <p className="text-slate-400 col-span-full text-center py-10">Memuat produk...</p>
+              ) : products?.map((product: any) => (
+                <div 
+                  key={product.id} 
+                  onClick={() => product.stock > 0 && addToCart(product)} 
+                  className={`bg-slate-800 p-4 rounded-xl transition-colors group ${product.stock <= 0 ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-slate-700'}`}
+                >
+                  <div className="aspect-square bg-slate-700 rounded-lg mb-3 overflow-hidden relative">
+                     {product.image ? (
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src = 'https://placehold.co/100?text=No+Image'} />
+                     ) : (
+                        <div className="flex items-center justify-center h-full text-slate-500 text-xs">No Image</div>
+                     )}
+                     {/* Stock Indicator */}
+                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-sm">
+                        Stok: {product.stock !== undefined ? product.stock : 0}
+                     </div>
+                  </div>
+                  <h3 className="font-medium text-slate-200 group-hover:text-emerald-400 truncate">{product.name}</h3>
+                  <p className="text-emerald-400 font-bold">{formatCurrency(product.price)}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-hidden">
+             <ActivityBookingView outletId={outletId} onSuccess={(tx) => setShowReceipt(tx)} />
+          </div>
+        )}
       </div>
 
       {/* Cart */}
+      {appMode === 'RETAIL' && (
       <div className="w-80 bg-slate-800 border-l border-slate-700 flex flex-col">
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -494,6 +511,7 @@ function POSPage() {
           </button>
         </div>
       </div>
+      )}
 
       {showCheckout && <CheckoutModal cart={cart} subtotal={total} taxes={taxes || []} onClose={() => setShowCheckout(false)} onSuccess={handleCheckoutSuccess} online={networkOnline} customerId={customer?.id} customerPoints={customer?.points || 0} outletId={outletId} />}
       {showReceipt && <ReceiptModal transaction={showReceipt} taxes={taxes || []} onClose={() => setShowReceipt(null)} />}

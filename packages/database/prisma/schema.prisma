@@ -11,17 +11,18 @@ datasource db {
 // ... (User)
 // ... (User)
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  password     String
-  role         Role          @default(CASHIER)
-  outletId     String?       // User belongs to an outlet
-  outlet       Outlet?       @relation(fields: [outletId], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  transactions Transaction[]
-  shifts       Shift[]
+  id              String        @id @default(cuid())
+  name            String
+  email           String        @unique
+  password        String
+  role            Role          @default(CASHIER)
+  outletId        String? // User belongs to an outlet
+  outlet          Outlet?       @relation(fields: [outletId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  transactions    Transaction[]
+  shifts          Shift[]
+  createdBookings Booking[]     @relation("UserBookings")
 }
 
 model Shift {
@@ -39,18 +40,20 @@ model Shift {
 }
 
 model Outlet {
-  id             String         @id @default(cuid())
-  name           String
-  address        String?
-  phone          String?
-  isHeadquarters Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  users          User[]
-  productStocks  ProductStock[]
-  transactions   Transaction[]
-  shifts         Shift[]
-  taxes          Tax[]
+  id               String            @id @default(cuid())
+  name             String
+  address          String?
+  phone            String?
+  isHeadquarters   Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  users            User[]
+  productStocks    ProductStock[]
+  transactions     Transaction[]
+  shifts           Shift[]
+  taxes            Tax[]
+  activityPackages ActivityPackage[]
+  guides           Guide[]
 }
 
 // ... (Category)
@@ -77,7 +80,8 @@ model Product {
   transactionItems TransactionItem[]
   stockMovements   StockMovement[]
   promos           Promo[]
-  stocks           ProductStock[]    // Track stock per outlet
+  stocks           ProductStock[] // Track stock per outlet
+  activityAddons   ActivityAddon[]
 }
 
 model ProductStock {
@@ -94,16 +98,16 @@ model ProductStock {
 }
 
 model StockMovement {
-  id          String        @id @default(cuid())
-  productId   String
-  product     Product       @relation(fields: [productId], references: [id])
-  outletId    String?       // Optional for now to support legacy, but should be required
-  type        MovementType
-  quantity    Int
-  reason      String?
-  reference   String?       // Transaction ID or adjustment reference
-  createdAt   DateTime      @default(now())
-  createdBy   String?       // User ID who made the change
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id])
+  outletId  String? // Optional for now to support legacy, but should be required
+  type      MovementType
+  quantity  Int
+  reason    String?
+  reference String? // Transaction ID or adjustment reference
+  createdAt DateTime     @default(now())
+  createdBy String? // User ID who made the change
 }
 
 model Customer {
@@ -116,29 +120,31 @@ model Customer {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[]
+  bookings     Booking[]
 }
 
 model Transaction {
-  id            String            @id @default(cuid())
-  userId        String?           // Made optional for resilience, but usually required
-  user          User?             @relation(fields: [userId], references: [id])
-  outletId      String?           // Transcation happens at an outlet
-  outlet        Outlet?           @relation(fields: [outletId], references: [id])
+  id            String             @id @default(cuid())
+  userId        String? // Made optional for resilience, but usually required
+  user          User?              @relation(fields: [userId], references: [id])
+  outletId      String? // Transcation happens at an outlet
+  outlet        Outlet?            @relation(fields: [outletId], references: [id])
   customerId    String?
-  customer      Customer?         @relation(fields: [customerId], references: [id])
-  subtotal      Float             @default(0)
+  customer      Customer?          @relation(fields: [customerId], references: [id])
+  subtotal      Float              @default(0)
   total         Float
-  taxAmount     Float             @default(0)
+  taxAmount     Float              @default(0)
   paid          Float
   change        Float
-  discount      Float             @default(0)
-  paymentMethod PaymentMethod     @default(CASH)
+  discount      Float              @default(0)
+  paymentMethod PaymentMethod      @default(CASH)
   payments      PaymentSplit[]
-  receiptNo     String            @unique @default(cuid())
-  createdAt     DateTime          @default(now())
+  receiptNo     String             @unique @default(cuid())
+  createdAt     DateTime           @default(now())
   items         TransactionItem[]
   promos        TransactionPromo[]
-  status        TransactionStatus @default(PENDING)
+  status        TransactionStatus  @default(PENDING)
+  bookings      Booking[]
 }
 
 // ... (TransactionStatus enum)
@@ -157,7 +163,7 @@ model PaymentSplit {
   transaction   Transaction   @relation(fields: [transactionId], references: [id])
   method        PaymentMethod
   amount        Float
-  reference     String?       // Reference number for QRIS/Card
+  reference     String? // Reference number for QRIS/Card
 }
 
 // ... (TransactionItem)
@@ -185,10 +191,10 @@ enum PaymentMethod {
 }
 
 enum MovementType {
-  IN          // Stock masuk
-  OUT         // Stock keluar (penjualan)
-  ADJUSTMENT  // Penyesuaian stok
-  RETURN      // Retur
+  IN // Stock masuk
+  OUT // Stock keluar (penjualan)
+  ADJUSTMENT // Penyesuaian stok
+  RETURN // Retur
 }
 
 enum CustomerTier {
@@ -200,33 +206,33 @@ enum CustomerTier {
 
 // Promo Engine
 model Promo {
-  id            String      @id @default(cuid())
-  code          String      @unique
-  name          String
-  description   String?
-  type          PromoType
-  
-  discountValue Float       @default(0)
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  type        PromoType
+
+  discountValue Float @default(0)
   buyQuantity   Int?
   getQuantity   Int?
-  
-  productId     String?
-  categoryId    String?
-  minPurchase   Float       @default(0)
-  
-  startDate     DateTime
-  endDate       DateTime
-  isActive      Boolean     @default(true)
-  
-  maxUsage      Int?
-  usageCount    Int         @default(0)
-  
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  
-  product       Product?    @relation(fields: [productId], references: [id])
-  category      Category?   @relation(fields: [categoryId], references: [id])
-  transactions  TransactionPromo[]
+
+  productId   String?
+  categoryId  String?
+  minPurchase Float   @default(0)
+
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(true)
+
+  maxUsage   Int?
+  usageCount Int  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product      Product?           @relation(fields: [productId], references: [id])
+  category     Category?          @relation(fields: [categoryId], references: [id])
+  transactions TransactionPromo[]
 }
 
 model TransactionPromo {
@@ -245,20 +251,175 @@ enum PromoType {
 }
 
 model Tax {
-  id          String   @id @default(cuid())
-  name        String
-  rate        Float
-  type        TaxType
-  isActive    Boolean  @default(true)
-  outletId    String
-  outlet      Outlet   @relation(fields: [outletId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id        String   @id @default(cuid())
+  name      String
+  rate      Float
+  type      TaxType
+  isActive  Boolean  @default(true)
+  outletId  String
+  outlet    Outlet   @relation(fields: [outletId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([name, outletId])
 }
 
 enum TaxType {
   INCLUSIVE
   EXCLUSIVE
+}
+
+// ==========================================
+// Booking & Activities Module
+// ==========================================
+
+model ActivityPackage {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  basePrice       Float
+  childPrice      Float?
+  maxCapacity     Int
+  minPax          Int      @default(1)
+  durationMinutes Int
+  outletId        String
+  outlet          Outlet   @relation(fields: [outletId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sessions            SessionTime[]
+  bookings            Booking[]
+  addons              ActivityAddon[]
+  dynamicPricingRules DynamicPricingRule[]
+}
+
+model SessionTime {
+  id                String          @id @default(cuid())
+  activityPackageId String
+  activityPackage   ActivityPackage @relation(fields: [activityPackageId], references: [id])
+  startTime         String // e.g., "09:00"
+  label             String? // e.g., "Pagi"
+  isActive          Boolean         @default(true)
+
+  bookings Booking[]
+}
+
+model Booking {
+  id                String          @id @default(cuid())
+  bookingCode       String          @unique // e.g. "RAF-20240408-001"
+  activityPackageId String
+  activityPackage   ActivityPackage @relation(fields: [activityPackageId], references: [id])
+  sessionTimeId     String
+  sessionTime       SessionTime     @relation(fields: [sessionTimeId], references: [id])
+  bookingDate       DateTime // Date of activity
+  status            BookingStatus   @default(DRAFT)
+  paxAdult          Int             @default(0)
+  paxChild          Int             @default(0)
+  totalAmount       Float
+  depositPaid       Float           @default(0)
+  balanceDue        Float
+
+  transactionId  String?
+  transaction    Transaction? @relation(fields: [transactionId], references: [id])
+  customerId     String?
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  guestName      String? // if customer not registered
+  guestPhone     String?
+  waiverSignedAt DateTime?
+  guideId        String?
+  guide          Guide?       @relation(fields: [guideId], references: [id])
+  notes          String?
+
+  createdBy     String
+  createdByUser User     @relation("UserBookings", fields: [createdBy], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants BookingParticipant[]
+  commissions  GuideCommission[]
+}
+
+model BookingParticipant {
+  id               String  @id @default(cuid())
+  bookingId        String
+  booking          Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name             String
+  age              Int?
+  idCardNumber     String?
+  emergencyContact String?
+}
+
+model Guide {
+  id             String  @id @default(cuid())
+  name           String
+  phone          String?
+  specialization String? // e.g. RAFTING, ATV, DIVING
+  outletId       String
+  outlet         Outlet  @relation(fields: [outletId], references: [id])
+  isActive       Boolean @default(true)
+  commissionRate Float   @default(0) // Percentage or fixed? Based on user info
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings    Booking[]
+  commissions GuideCommission[]
+}
+
+model GuideCommission {
+  id        String    @id @default(cuid())
+  guideId   String
+  guide     Guide     @relation(fields: [guideId], references: [id])
+  bookingId String
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  amount    Float
+  isPaid    Boolean   @default(false)
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityAddon {
+  id                String          @id @default(cuid())
+  activityPackageId String
+  activityPackage   ActivityPackage @relation(fields: [activityPackageId], references: [id])
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  label             String?
+  price             Float
+  isActive          Boolean         @default(true)
+}
+
+model DynamicPricingRule {
+  id                String                @id @default(cuid())
+  activityPackageId String
+  activityPackage   ActivityPackage       @relation(fields: [activityPackageId], references: [id])
+  triggerType       PricingTriggerType
+  adjustmentType    PricingAdjustmentType
+  adjustmentValue   Float // positive = increase, negative = decrease
+  conditionValue    Float? // e.g. 80 meaning 80% occupancy triggers rule
+  startDate         DateTime?
+  endDate           DateTime?
+  isActive          Boolean               @default(true)
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+}
+
+enum PricingTriggerType {
+  HIGH_SEASON
+  LOW_OCCUPANCY
+  LAST_MINUTE
+}
+
+enum PricingAdjustmentType {
+  PERCENTAGE
+  NOMINAL
 }
