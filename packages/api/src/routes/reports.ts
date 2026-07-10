@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const reportsRouter = Router();
 
 // Dashboard summary
-reportsRouter.get('/dashboard', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/dashboard', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tenantId = req.user!.tenantId;
     
     const [
       totalProducts,
@@ -18,17 +19,18 @@ reportsRouter.get('/dashboard', authMiddleware, adminOnly, async (req, res) => {
       todaySales,
       recentTransactions,
     ] = await Promise.all([
-      prisma.product.count(),
-      prisma.category.count(),
-      prisma.user.count(),
+      prisma.product.count({ where: { tenantId } }),
+      prisma.category.count({ where: { tenantId } }),
+      prisma.user.count({ where: { tenantId } }),
       prisma.transaction.count({
-        where: { createdAt: { gte: today } },
+        where: { createdAt: { gte: today }, outlet: { tenantId } },
       }),
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: today } },
+        where: { createdAt: { gte: today }, outlet: { tenantId } },
         _sum: { total: true },
       }),
       prisma.transaction.findMany({
+        where: { outlet: { tenantId } },
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -52,20 +54,36 @@ reportsRouter.get('/dashboard', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Daily sales report
-reportsRouter.get('/daily', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/daily', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { date } = req.query;
-    const targetDate = date ? new Date(date as string) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
-    
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const { date, startDate, endDate } = req.query;
+    let targetStart = new Date();
+    let targetEnd = new Date();
+
+    if (startDate && endDate) {
+      targetStart = new Date(startDate as string);
+      targetStart.setHours(0, 0, 0, 0);
+      targetEnd = new Date(endDate as string);
+      targetEnd.setUTCHours(23, 59, 59, 999);
+    } else if (date) {
+      targetStart = new Date(date as string);
+      targetStart.setHours(0, 0, 0, 0);
+      targetEnd = new Date(targetStart);
+      targetEnd.setDate(targetEnd.getDate() + 1);
+    } else {
+      targetStart.setHours(0, 0, 0, 0);
+      targetEnd = new Date(targetStart);
+      targetEnd.setDate(targetEnd.getDate() + 1);
+    }
+
+    const tenantId = req.user!.tenantId;
     
     const transactions = await prisma.transaction.findMany({
       where: {
+        outlet: { tenantId },
         createdAt: {
-          gte: targetDate,
-          lt: nextDay,
+          gte: targetStart,
+          lte: targetEnd,
         },
       },
       include: {
@@ -79,7 +97,8 @@ reportsRouter.get('/daily', authMiddleware, adminOnly, async (req, res) => {
     const totalTransactions = transactions.length;
     
     res.json({
-      date: targetDate.toISOString().split('T')[0],
+      startDate: targetStart.toISOString().split('T')[0],
+      endDate: targetEnd.toISOString().split('T')[0],
       totalSales,
       totalTransactions,
       transactions,
@@ -90,10 +109,38 @@ reportsRouter.get('/daily', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Top selling products
-reportsRouter.get('/top-products', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/top-products', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    const tenantId = req.user!.tenantId;
+
+    let createdAtFilter: any = undefined;
+    if (startDate && endDate) {
+      const targetStart = new Date(startDate as string);
+      targetStart.setHours(0, 0, 0, 0);
+      const targetEnd = new Date(endDate as string);
+      targetEnd.setUTCHours(23, 59, 59, 999);
+      createdAtFilter = {
+        gte: targetStart,
+        lte: targetEnd,
+      };
+    }
+
+    // Filter transaction items by tenant via transaction -> outlet
+    const transactions = await prisma.transaction.findMany({
+      where: { 
+        outlet: { tenantId },
+        ...(createdAtFilter ? { createdAt: createdAtFilter } : {})
+      },
+      select: { id: true }
+    });
+    const transactionIds = transactions.map(t => t.id);
+
     const topProducts = await prisma.transactionItem.groupBy({
       by: ['productId'],
+      where: {
+        transactionId: { in: transactionIds }
+      },
       _sum: { quantity: true, subtotal: true },
       orderBy: { _sum: { quantity: 'desc' } },
       take: 10,
@@ -101,8 +148,8 @@ reportsRouter.get('/top-products', authMiddleware, adminOnly, async (req, res) =
     
     const productsWithDetails = await Promise.all(
       topProducts.map(async (item) => {
-        const product = await prisma.product.findUnique({
-          where: { id: item.productId },
+        const product = await prisma.product.findFirst({
+          where: { id: item.productId, tenantId },
           include: { category: true },
         });
         return {
@@ -120,12 +167,13 @@ reportsRouter.get('/top-products', authMiddleware, adminOnly, async (req, res) =
 });
 
 // Weekly sales trend
-reportsRouter.get('/weekly-sales', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/weekly-sales', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const today = new Date();
     const weekAgo = new Date(today);
     weekAgo.setDate(today.getDate() - 6);
     weekAgo.setHours(0, 0, 0, 0);
+    const tenantId = req.user!.tenantId;
     
     const dailySales = [];
     const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -140,6 +188,7 @@ reportsRouter.get('/weekly-sales', authMiddleware, adminOnly, async (req, res) =
       
       const sales = await prisma.transaction.aggregate({
         where: {
+          outlet: { tenantId },
           createdAt: {
             gte: dayStart,
             lt: dayEnd,
@@ -164,13 +213,15 @@ reportsRouter.get('/weekly-sales', authMiddleware, adminOnly, async (req, res) =
 });
 
 // Low stock alerts
-reportsRouter.get('/low-stock', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/low-stock', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const threshold = parseInt(req.query.threshold as string) || 10;
+    const tenantId = req.user!.tenantId;
     
     const lowStockItems = await prisma.productStock.findMany({
       where: {
         stock: { lte: threshold },
+        outlet: { tenantId }
       },
       include: {
         product: { include: { category: { select: { name: true } } } },
@@ -195,14 +246,16 @@ reportsRouter.get('/low-stock', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Payment method breakdown
-reportsRouter.get('/payment-breakdown', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/payment-breakdown', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tenantId = req.user!.tenantId;
     
     const breakdown = await prisma.transaction.groupBy({
       by: ['paymentMethod'],
       where: {
+        outlet: { tenantId },
         createdAt: { gte: today },
       },
       _sum: { total: true },
@@ -222,10 +275,11 @@ reportsRouter.get('/payment-breakdown', authMiddleware, adminOnly, async (req, r
 });
 
 // Sales comparison (today vs yesterday, this week vs last week)
-reportsRouter.get('/comparison', authMiddleware, adminOnly, async (req, res) => {
+reportsRouter.get('/comparison', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tenantId = req.user!.tenantId;
     
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
@@ -240,22 +294,22 @@ reportsRouter.get('/comparison', authMiddleware, adminOnly, async (req, res) => 
     
     const [todaySales, yesterdaySales, thisWeekSales, lastWeekSales] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: today } },
+        where: { outlet: { tenantId }, createdAt: { gte: today } },
         _sum: { total: true },
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: yesterday, lt: today } },
+        where: { outlet: { tenantId }, createdAt: { gte: yesterday, lt: today } },
         _sum: { total: true },
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: thisWeekStart } },
+        where: { outlet: { tenantId }, createdAt: { gte: thisWeekStart } },
         _sum: { total: true },
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd } },
+        where: { outlet: { tenantId }, createdAt: { gte: lastWeekStart, lt: lastWeekEnd } },
         _sum: { total: true },
         _count: true,
       }),

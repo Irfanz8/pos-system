@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const customersRouter = Router();
 
 // Get all customers
-customersRouter.get('/', authMiddleware, async (req, res) => {
+customersRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { search, tier, page = 1, limit = 20 } = req.query;
+    const tenantId = req.user!.tenantId;
     
-    const where: any = {};
+    const where: any = { tenantId };
     if (search) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },
@@ -43,12 +44,13 @@ customersRouter.get('/', authMiddleware, async (req, res) => {
 });
 
 // Get customer by phone (for cashier quick lookup)
-customersRouter.get('/by-phone/:phone', authMiddleware, async (req, res) => {
+customersRouter.get('/by-phone/:phone', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { phone } = req.params;
+    const tenantId = req.user!.tenantId;
     
     const customer = await prisma.customer.findUnique({
-      where: { phone },
+      where: { phone_tenantId: { phone, tenantId } },
       include: {
         _count: { select: { transactions: true } },
       },
@@ -65,12 +67,10 @@ customersRouter.get('/by-phone/:phone', authMiddleware, async (req, res) => {
 });
 
 // Get customer by ID
-customersRouter.get('/:id', authMiddleware, async (req, res) => {
+customersRouter.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
-    
-    const customer = await prisma.customer.findUnique({
-      where: { id },
+    const customer = await prisma.customer.findFirst({
+      where: { id: req.params.id, tenantId: req.user!.tenantId },
       include: {
         transactions: {
           take: 10,
@@ -94,17 +94,18 @@ customersRouter.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create customer
-customersRouter.post('/', authMiddleware, async (req, res) => {
+customersRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { name, phone, email } = req.body;
+    const tenantId = req.user!.tenantId;
     
     if (!name || !phone) {
       return res.status(400).json({ error: 'Name and phone are required' });
     }
     
-    // Check if phone exists
+    // Check if phone exists within tenant
     const existing = await prisma.customer.findUnique({
-      where: { phone },
+      where: { phone_tenantId: { phone, tenantId } },
     });
     
     if (existing) {
@@ -112,7 +113,7 @@ customersRouter.post('/', authMiddleware, async (req, res) => {
     }
     
     const customer = await prisma.customer.create({
-      data: { name, phone, email },
+      data: { name, phone, email, tenantId },
     });
     
     res.status(201).json(customer);
@@ -122,10 +123,13 @@ customersRouter.post('/', authMiddleware, async (req, res) => {
 });
 
 // Update customer
-customersRouter.put('/:id', authMiddleware, async (req, res) => {
+customersRouter.put('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { name, phone, email, points, tier } = req.body;
+    
+    const existing = await prisma.customer.findFirst({ where: { id, tenantId: req.user!.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Customer not found' });
     
     const customer = await prisma.customer.update({
       where: { id },
@@ -142,13 +146,13 @@ customersRouter.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // Add points to customer
-customersRouter.post('/:id/points', authMiddleware, async (req, res) => {
+customersRouter.post('/:id/points', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { amount, type } = req.body; // type: 'add' or 'redeem'
+    const { amount, type } = req.body;
     
-    const customer = await prisma.customer.findUnique({
-      where: { id },
+    const customer = await prisma.customer.findFirst({
+      where: { id, tenantId: req.user!.tenantId },
     });
     
     if (!customer) {
@@ -183,13 +187,14 @@ customersRouter.post('/:id/points', authMiddleware, async (req, res) => {
 });
 
 // Delete customer (admin only)
-customersRouter.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+customersRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     
-    await prisma.customer.delete({
-      where: { id },
-    });
+    const existing = await prisma.customer.findFirst({ where: { id, tenantId: req.user!.tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Customer not found' });
+    
+    await prisma.customer.delete({ where: { id } });
     
     res.json({ message: 'Customer deleted successfully' });
   } catch (error) {

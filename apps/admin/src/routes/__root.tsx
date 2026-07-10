@@ -45,7 +45,7 @@ function RootComponent() {
     { to: '/customers', label: 'Pelanggan', icon: Heart },
     { to: '/promos', label: 'Promo', icon: Ticket },
     { to: '/users', label: 'Pengguna', icon: Users },
-    { to: '/outlets', label: 'Outlet', icon: Warehouse },
+    { to: '/outlets', label: 'Gudang', icon: Warehouse },
     { to: '/taxes', label: 'Pajak & Biaya', icon: Receipt },
     { to: '/reports', label: 'Laporan', icon: FileBarChart },
     { to: '/ai-insights', label: 'AI Insights', icon: Brain },
@@ -59,7 +59,7 @@ function RootComponent() {
         <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-slate-100 rounded-lg">
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-semibold text-indigo-600">POS Admin</span>
+        <span className="font-semibold text-indigo-600">{user?.tenantName || 'POS Admin'}</span>
         <div className="w-9" />
       </div>
 
@@ -82,8 +82,8 @@ function RootComponent() {
             <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
               <Package className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              POS Admin
+            <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent truncate max-w-[150px]">
+              {user?.tenantName || 'POS Admin'}
             </span>
           </div>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 hover:bg-slate-100 rounded">
@@ -91,7 +91,7 @@ function RootComponent() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1 min-h-0">
           {navItems.map((item) => (
             <Link
               key={item.to}

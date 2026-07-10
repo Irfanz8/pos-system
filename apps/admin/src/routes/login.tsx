@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { Package, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Package, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -10,6 +10,7 @@ export const Route = createFileRoute('/login')({
 function LoginPage() {
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const search = useSearch({ from: '/login' }) as { registered?: boolean }
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -54,6 +55,17 @@ function LoginPage() {
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Success message */}
+          {search?.registered && !error && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Pendaftaran Berhasil!</p>
+                <p>Silakan masuk menggunakan email dan password yang baru Anda buat.</p>
+              </div>
             </div>
           )}
 
@@ -108,11 +120,13 @@ function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-slate-50 rounded-lg">
-            <p className="text-xs text-slate-500 text-center mb-2">Demo credentials:</p>
-            <p className="text-sm text-slate-600 text-center font-mono">
-              admin@pos.com / admin123
+          {/* Link to Register */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-600">
+              Belum punya akun?{' '}
+              <Link to="/register" className="text-indigo-600 font-medium hover:underline">
+                Daftar sekarang
+              </Link>
             </p>
           </div>
         </div>

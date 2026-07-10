@@ -15,13 +15,26 @@ function generateReceiptNo(): string {
 // Get all transactions
 transactionsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { startDate, endDate, page = 1, limit = 20, outletId } = req.query;
+    const { startDate, endDate, page = 1, limit = 20, outletId, search } = req.query;
+    const tenantId = req.user!.tenantId;
     
-    const where: any = {};
+    const where: any = {
+      outlet: { tenantId },
+      ...(search ? {
+        OR: [
+          { receiptNo: { contains: search as string, mode: 'insensitive' } },
+          { customer: { name: { contains: search as string, mode: 'insensitive' } } },
+          { customer: { phone: { contains: search as string, mode: 'insensitive' } } }
+        ]
+      } : {})
+    };
     if (startDate && endDate) {
+      const end = new Date(endDate as string);
+      end.setUTCHours(23, 59, 59, 999);
+      
       where.createdAt = {
         gte: new Date(startDate as string),
-        lte: new Date(endDate as string),
+        lte: end,
       };
     }
     // Cashiers can only see their own transactions, Admin can filter by outlet or see all
@@ -91,10 +104,10 @@ transactionsRouter.get('/public/:id', async (req, res) => {
 });
 
 // Get single transaction / receipt
-transactionsRouter.get('/:id', authMiddleware, async (req, res) => {
+transactionsRouter.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: req.params.id },
+    const transaction = await prisma.transaction.findFirst({
+      where: { id: req.params.id, outlet: { tenantId: req.user!.tenantId } },
       include: {
         user: { select: { id: true, name: true } },
         customer: { select: { id: true, name: true, phone: true, tier: true, points: true } },
@@ -115,10 +128,10 @@ transactionsRouter.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Get receipt by receipt number
-transactionsRouter.get('/receipt/:receiptNo', authMiddleware, async (req, res) => {
+transactionsRouter.get('/receipt/:receiptNo', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const transaction = await prisma.transaction.findUnique({
-      where: { receiptNo: req.params.receiptNo },
+    const transaction = await prisma.transaction.findFirst({
+      where: { receiptNo: req.params.receiptNo, outlet: { tenantId: req.user!.tenantId } },
       include: {
         user: { select: { id: true, name: true } },
         customer: { select: { id: true, name: true, phone: true, tier: true } },
@@ -152,14 +165,22 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
       outletId,
     } = req.body;
 
+    const tenantId = req.user!.tenantId;
     const targetOutletId = outletId || req.user?.outletId;
     if (!targetOutletId) {
         return res.status(400).json({ error: 'Outlet ID required' });
     }
+
+    // Verify outlet belongs to tenant
+    const outletCheck = await prisma.outlet.findFirst({ where: { id: targetOutletId, tenantId } });
+    if (!outletCheck) return res.status(403).json({ error: 'Outlet not found' });
     
     // Validate stock per outlet
     for (const item of items) {
       if (item.productId) { 
+         const product = await prisma.product.findUnique({ where: { id: item.productId } });
+         if (product && !product.trackStock) continue;
+
          const productStock = await prisma.productStock.findUnique({
             where: {
                 productId_outletId: {
@@ -181,7 +202,7 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     const transactionItems = [];
 
     for (const item of items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await prisma.product.findFirst({ where: { id: item.productId, tenantId } });
       if (!product) continue;
       
       const itemDiscount = item.discount || 0;
@@ -204,7 +225,7 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     if (redeemPoints && redeemPoints > 0) {
       if (!customerId) return res.status(400).json({ error: 'Customer required for point redemption' });
       
-      const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+      const customer = await prisma.customer.findFirst({ where: { id: customerId, tenantId } });
       if (!customer) return res.status(404).json({ error: 'Customer not found' });
       if (customer.points < redeemPoints) return res.status(400).json({ error: 'Insufficient points' });
       
@@ -288,6 +309,9 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     
     // Update Stock (ProductStock) & History
     for (const item of items) {
+       const product = await prisma.product.findUnique({ where: { id: item.productId } });
+       if (product && !product.trackStock) continue;
+
        await prisma.productStock.upsert({
           where: { productId_outletId: { productId: item.productId, outletId: targetOutletId } },
           update: { stock: { decrement: item.quantity } },
@@ -309,7 +333,7 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
     
     // Handle Points (Deduct redeemed and Add earned)
     if (customerId) {
-        const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+        const customer = await prisma.customer.findFirst({ where: { id: customerId, tenantId } });
         if (customer) {
             let newPoints = customer.points;
             if (pointsRedeemed > 0) newPoints -= pointsRedeemed;
@@ -337,13 +361,14 @@ transactionsRouter.post('/', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Void transaction (admin only)
-transactionsRouter.post('/:id/void', authMiddleware, adminOnly, async (req, res) => {
+transactionsRouter.post('/:id/void', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
+    const tenantId = req.user!.tenantId;
     
-    const transaction = await prisma.transaction.findUnique({
-      where: { id },
+    const transaction = await prisma.transaction.findFirst({
+      where: { id, outlet: { tenantId } },
       include: { items: true },
     });
     
@@ -356,6 +381,9 @@ transactionsRouter.post('/:id/void', authMiddleware, adminOnly, async (req, res)
     
     for (const item of transaction.items) {
       if (targetOutletId) {
+          const product = await prisma.product.findUnique({ where: { id: item.productId } });
+          if (product && !product.trackStock) continue;
+
           await prisma.productStock.upsert({
               where: { productId_outletId: { productId: item.productId, outletId: targetOutletId } },
               update: { stock: { increment: item.quantity } },

@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { categoriesApi } from '../lib/api'
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Tags, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Tags, X, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/categories')({
@@ -18,6 +18,7 @@ function CategoriesPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<any>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<any>(null)
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['categories'],
@@ -32,8 +33,12 @@ function CategoriesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       toast.success('Kategori berhasil dihapus')
+      setCategoryToDelete(null)
     },
-    onError: () => toast.error('Gagal menghapus kategori')
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Gagal menghapus kategori')
+      setCategoryToDelete(null)
+    }
   })
 
   const handleEdit = (category: any) => {
@@ -41,15 +46,14 @@ function CategoriesPage() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Hapus kategori "${name}"?`)) {
-      deleteMutation.mutate(id)
-    }
+  const handleDelete = (category: any) => {
+    setCategoryToDelete(category)
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Kategori</h1>
           <p className="text-slate-500">Kelola kategori produk</p>
@@ -102,7 +106,7 @@ function CategoriesPage() {
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(category.id, category.name)}
+                    onClick={() => handleDelete(category)}
                     className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -116,6 +120,7 @@ function CategoriesPage() {
           ))
         )}
       </div>
+      </div>
 
       {/* Modal */}
       {isModalOpen && (
@@ -124,7 +129,42 @@ function CategoriesPage() {
           onClose={() => setIsModalOpen(false)}
         />
       )}
-    </div>
+
+      {/* Delete Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+            <h2 className="text-lg font-bold text-slate-800 mb-2">Konfirmasi Hapus</h2>
+            <p className="text-slate-600 mb-6">
+              Apakah Anda yakin ingin menghapus kategori <b>{categoryToDelete.name}</b>?
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setCategoryToDelete(null)} 
+                className="btn btn-secondary flex-1"
+                disabled={deleteMutation.isPending}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={() => deleteMutation.mutate(categoryToDelete.id)} 
+                className="btn btn-danger flex-1"
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Menghapus...
+                  </>
+                ) : (
+                  'Hapus'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -207,11 +247,18 @@ function CategoryModal({
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1" disabled={isLoading}>
               Batal
             </button>
             <button type="submit" disabled={isLoading} className="btn btn-primary flex-1">
-              {isLoading ? 'Menyimpan...' : 'Simpan'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                'Simpan'
+              )}
             </button>
           </div>
         </form>

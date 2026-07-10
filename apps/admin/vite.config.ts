@@ -6,6 +6,6 @@ export default defineConfig({
   base: '/admin/',
   plugins: [react(), TanStackRouterVite()],
   server: {
-    port: 5173,
+    port: 8081,
   },
 })

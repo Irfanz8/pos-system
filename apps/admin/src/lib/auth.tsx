@@ -5,7 +5,9 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'CASHIER';
+  role: 'ADMIN' | 'CASHIER' | 'OWNER';
+  tenantId: string;
+  tenantName?: string;
 }
 
 interface AuthContextType {
@@ -39,9 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authApi.login(email, password);
     const { token: newToken, user: newUser } = response.data;
     
-    // Check if user is ADMIN
-    if (newUser.role !== 'ADMIN') {
-      throw new Error('Hanya admin yang bisa akses dashboard ini');
+    // Check if user is ADMIN or OWNER
+    if (newUser.role !== 'ADMIN' && newUser.role !== 'OWNER') {
+      throw new Error('Hanya admin/pemilik yang bisa akses dashboard ini');
     }
     
     localStorage.setItem('token', newToken);

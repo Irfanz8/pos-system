@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from './api';
 
-interface User { id: string; name: string; email: string; role: string; outletId?: string; }
+interface User { id: string; name: string; email: string; role: string; outletId?: string; tenantId: string; tenantName?: string; }
 interface AuthContextType {
   user: User | null;
   token: string | null;

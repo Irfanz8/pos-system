@@ -15,6 +15,7 @@ import { Route as TaxesRouteImport } from './routes/taxes'
 import { Route as StockRouteImport } from './routes/stock'
 import { Route as ShiftsRouteImport } from './routes/shifts'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PromosRouteImport } from './routes/promos'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OutletsRouteImport } from './routes/outlets'
@@ -52,6 +53,11 @@ const ShiftsRoute = ShiftsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PromosRoute = PromosRouteImport.update({
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByTo {
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/outlets': typeof OutletsRoute
   '/products': typeof ProductsRoute
   '/promos': typeof PromosRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/shifts': typeof ShiftsRoute
   '/stock': typeof StockRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/outlets'
     | '/products'
     | '/promos'
+    | '/register'
     | '/reports'
     | '/shifts'
     | '/stock'
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
     | '/outlets'
     | '/products'
     | '/promos'
+    | '/register'
     | '/reports'
     | '/shifts'
     | '/stock'
@@ -187,6 +198,7 @@ export interface FileRouteTypes {
     | '/outlets'
     | '/products'
     | '/promos'
+    | '/register'
     | '/reports'
     | '/shifts'
     | '/stock'
@@ -204,6 +216,7 @@ export interface RootRouteChildren {
   OutletsRoute: typeof OutletsRoute
   ProductsRoute: typeof ProductsRoute
   PromosRoute: typeof PromosRoute
+  RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
   ShiftsRoute: typeof ShiftsRoute
   StockRoute: typeof StockRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/promos': {
@@ -324,6 +344,7 @@ const rootRouteChildren: RootRouteChildren = {
   OutletsRoute: OutletsRoute,
   ProductsRoute: ProductsRoute,
   PromosRoute: PromosRoute,
+  RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
   ShiftsRoute: ShiftsRoute,
   StockRoute: StockRoute,

@@ -5,10 +5,11 @@ import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const usersRouter = Router();
 
-// Get all users (admin only)
-usersRouter.get('/', authMiddleware, adminOnly, async (req, res) => {
+// Get all users (admin only) — scoped to tenant
+usersRouter.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const users = await prisma.user.findMany({
+      where: { tenantId: req.user!.tenantId },
       select: {
         id: true,
         name: true,
@@ -26,15 +27,19 @@ usersRouter.get('/', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// Create user (admin only)
+// Create user (admin only) — within same tenant
 usersRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { name, email, password, role, outletId } = req.body;
+    const tenantId = req.user!.tenantId;
     
     const hashedPassword = await bcrypt.hash(password, 10);
     
+    const data: any = { name, email, password: hashedPassword, role, tenantId };
+    if (outletId) data.outletId = outletId;
+
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, role, outletId },
+      data,
       select: { id: true, name: true, email: true, role: true, outlet: { select: { id: true, name: true } }, createdAt: true },
     });
     
@@ -51,8 +56,19 @@ usersRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) =
 usersRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { name, email, password, role, outletId } = req.body;
+    const tenantId = req.user!.tenantId;
     
-    const data: any = { name, email, role, outletId };
+    // Verify user belongs to tenant
+    const existing = await prisma.user.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'User not found' });
+    
+    const data: any = { name, email, role };
+    if (outletId) {
+      data.outletId = outletId;
+    } else if (outletId === "") {
+      data.outletId = null; // Allow removing outlet
+    }
+    
     if (password) {
       data.password = await bcrypt.hash(password, 10);
     }
@@ -75,10 +91,16 @@ usersRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res)
 // Delete user (admin only)
 usersRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
+    const tenantId = req.user!.tenantId;
+    
     // Prevent deleting yourself
     if (req.params.id === req.user?.id) {
       return res.status(400).json({ error: 'Cannot delete yourself' });
     }
+    
+    // Verify user belongs to tenant
+    const existing = await prisma.user.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'User not found' });
     
     await prisma.user.delete({ where: { id: req.params.id } });
     res.json({ message: 'User deleted' });

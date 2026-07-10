@@ -12,6 +12,7 @@ import {
   Plus,
   X,
   ClipboardList,
+  Search,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -23,15 +24,20 @@ export const Route = createFileRoute('/stock')({
 })
 
 function StockPage() {
+  const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [outletId, setOutletId] = useState('')
   const [showAdjust, setShowAdjust] = useState(false)
   const [showOpname, setShowOpname] = useState(false)
 
   const { data: movements, isLoading } = useQuery({
-    queryKey: ['stock-movements', typeFilter, outletId],
+    queryKey: ['stock-movements', typeFilter, outletId, search],
     queryFn: async () => {
-      const res = await stockApi.getAllMovements({ type: typeFilter || undefined, outletId: outletId || undefined })
+      const res = await stockApi.getAllMovements({ 
+        type: typeFilter || undefined, 
+        outletId: outletId || undefined,
+        search: search || undefined
+      })
       return res.data
     },
   })
@@ -61,8 +67,19 @@ function StockPage() {
       </div>
 
       {/* Type Filter & Outlet Filter */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
+      <div className="card flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+        <div className="flex-1 w-full md:w-auto relative min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari produk (nama/sku)..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input pl-10"
+          />
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full md:w-auto">
             <button onClick={() => setTypeFilter('')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${!typeFilter ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
             Semua
             </button>

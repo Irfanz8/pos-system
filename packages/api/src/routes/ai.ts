@@ -23,12 +23,14 @@ function linearRegression(y: number[]) {
 aiRouter.get('/sales-prediction', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { outletId } = req.query;
+    const tenantId = req.user!.tenantId;
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - 30); // Last 30 days
 
     const where: any = {
       createdAt: { gte: startDate, lte: endDate },
+      outlet: { tenantId }
     };
     if (outletId) where.outletId = outletId as string;
 
@@ -78,7 +80,12 @@ aiRouter.get('/sales-prediction', authMiddleware, adminOnly, async (req: AuthReq
 aiRouter.get('/stock-recommendations', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { outletId } = req.query;
+    const tenantId = req.user!.tenantId;
     if (!outletId) return res.status(400).json({ error: 'Outlet ID required' });
+
+    // Verify outlet belongs to tenant
+    const outlet = await prisma.outlet.findFirst({ where: { id: outletId as string, tenantId } });
+    if (!outlet) return res.status(403).json({ error: 'Outlet not found' });
 
     // Get sales from last 30 days to calculate velocity
     const endDate = new Date();
@@ -144,7 +151,9 @@ aiRouter.get('/stock-recommendations', authMiddleware, adminOnly, async (req: Au
 aiRouter.get('/anomalies', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { outletId } = req.query;
-    const where: any = {};
+    const tenantId = req.user!.tenantId;
+    
+    const where: any = { outlet: { tenantId } };
     if (outletId) where.outletId = outletId as string;
 
     // Get last 1000 transactions for statistical significance
@@ -167,7 +176,6 @@ aiRouter.get('/anomalies', authMiddleware, adminOnly, async (req: AuthRequest, r
     const stdDev = Math.sqrt(variance);
 
     // Filter outliers (Z-Score > 3 or < -3)
-    // We mainly care about unusually HIGH amounts (> 3) or weirdly LOW if valid
     const anomalies = transactions
       .map(t => {
         const zScore = (t.total - mean) / stdDev;

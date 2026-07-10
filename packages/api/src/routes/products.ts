@@ -7,18 +7,19 @@ export const productsRouter = Router();
 // Get all products
 productsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { categoryId, search } = req.query;
+    const { categoryId, search, limit } = req.query;
+    const tenantId = req.user!.tenantId;
     
-    // We can't easily filter by stock here without raw query or post-processing, 
-    // but the requirement didn't specify filtering by stock level for the general list.
+    const take = limit ? parseInt(limit as string, 10) : undefined;
     
     const products = await prisma.product.findMany({
       where: {
+        tenantId,
         ...(categoryId && { categoryId: categoryId as string }),
         ...(search && {
           OR: [
-            { name: { contains: search as string } },
-            { sku: { contains: search as string } },
+            { name: { contains: search as string, mode: 'insensitive' } },
+            { sku: { contains: search as string, mode: 'insensitive' } },
           ],
         }),
       },
@@ -27,6 +28,7 @@ productsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
         stocks: true 
       },
       orderBy: { name: 'asc' },
+      ...(take && { take }),
     });
     
     // Map to include a virtual 'stock' field
@@ -49,10 +51,10 @@ productsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Get single product
-productsRouter.get('/:id', authMiddleware, async (req, res) => {
+productsRouter.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: req.params.id },
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, tenantId: req.user!.tenantId },
       include: { 
         category: true,
         stocks: { include: { outlet: true } }
@@ -77,11 +79,15 @@ productsRouter.get('/:id', authMiddleware, async (req, res) => {
 // Create product (admin only)
 productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { name, sku, price, stock, categoryId, image, outletId } = req.body;
+    const { name, sku, price, stock, categoryId, image, outletId, trackStock } = req.body;
+    const tenantId = req.user!.tenantId;
     
     // Create product without stock first
     const product = await prisma.product.create({
-      data: { name, sku, price, categoryId, image },
+      data: { 
+        name, sku, price, categoryId, image, tenantId,
+        trackStock: trackStock !== undefined ? trackStock : true 
+      },
       include: { category: true },
     });
     
@@ -90,10 +96,10 @@ productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res
         
         // Fallback backward-compatibility (If user posts via old API clients)
         if (!targetOutletId) {
-            const hq = await prisma.outlet.findFirst({ where: { isHeadquarters: true } });
+            const hq = await prisma.outlet.findFirst({ where: { isHeadquarters: true, tenantId } });
             if (hq) targetOutletId = hq.id;
             else {
-                const anyOutlet = await prisma.outlet.findFirst();
+                const anyOutlet = await prisma.outlet.findFirst({ where: { tenantId } });
                 if (anyOutlet) targetOutletId = anyOutlet.id;
             }
         }
@@ -133,13 +139,19 @@ productsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res
 // Update product (admin only)
 productsRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { name, sku, price, categoryId, image } = req.body;
+    const { name, sku, price, categoryId, image, trackStock } = req.body;
+    const tenantId = req.user!.tenantId;
     
-    // Note: Stock update is NOT handled here anymore. Use Stock API.
+    // Verify product belongs to tenant
+    const existing = await prisma.product.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Product not found' });
     
     const product = await prisma.product.update({
       where: { id: req.params.id },
-      data: { name, sku, price, categoryId, image },
+      data: { 
+        name, sku, price, categoryId, image,
+        ...(trackStock !== undefined && { trackStock })
+      },
       include: { category: true },
     });
     
@@ -155,7 +167,26 @@ productsRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, r
 // Delete product (admin only)
 productsRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    await prisma.product.delete({ where: { id: req.params.id } });
+    const tenantId = req.user!.tenantId;
+    const productId = req.params.id;
+    
+    // Verify product belongs to tenant
+    const existing = await prisma.product.findFirst({ where: { id: productId, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Product not found' });
+    
+    // Check if product has been sold
+    const hasTransactions = await prisma.transactionItem.findFirst({ where: { productId } });
+    if (hasTransactions) {
+      return res.status(400).json({ error: 'Tidak bisa menghapus produk karena sudah memiliki riwayat transaksi.' });
+    }
+    
+    await prisma.$transaction([
+      prisma.promo.updateMany({ where: { productId }, data: { productId: null } }),
+      prisma.stockMovement.deleteMany({ where: { productId } }),
+      prisma.productStock.deleteMany({ where: { productId } }),
+      prisma.product.delete({ where: { id: productId } })
+    ]);
+    
     res.json({ message: 'Product deleted' });
   } catch (error: any) {
     if (error.code === 'P2025') {

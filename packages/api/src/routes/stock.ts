@@ -4,12 +4,14 @@ import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const stockRouter = Router();
 
-// Get all stock (with ProductStock)
+// Get all stock (with ProductStock) — scoped to tenant
 stockRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { outletId } = req.query;
+    const tenantId = req.user!.tenantId;
     
     const products = await prisma.product.findMany({
+      where: { tenantId },
       include: {
         category: true,
         stocks: {
@@ -26,10 +28,15 @@ stockRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Get stock movements for a product
-stockRouter.get('/movements/:productId', authMiddleware, async (req, res) => {
+stockRouter.get('/movements/:productId', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { productId } = req.params;
     const { page = 1, limit = 20, outletId } = req.query;
+    const tenantId = req.user!.tenantId;
+
+    // Verify product belongs to tenant
+    const product = await prisma.product.findFirst({ where: { id: productId, tenantId } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
     
     const where: any = { productId };
     if (outletId) where.outletId = outletId as string;
@@ -58,11 +65,22 @@ stockRouter.get('/movements/:productId', authMiddleware, async (req, res) => {
 });
 
 // Get all stock movements (admin only)
-stockRouter.get('/movements', authMiddleware, adminOnly, async (req, res) => {
+stockRouter.get('/movements', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { page = 1, limit = 20, type, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, type, startDate, endDate, search } = req.query;
+    const tenantId = req.user!.tenantId;
     
-    const where: any = {};
+    const where: any = {
+      product: { 
+        tenantId,
+        ...(search ? {
+          OR: [
+            { name: { contains: search as string, mode: 'insensitive' } },
+            { sku: { contains: search as string, mode: 'insensitive' } },
+          ]
+        } : {})
+      },
+    };
     if (type) where.type = type;
     if (startDate || endDate) {
       where.createdAt = {};
@@ -100,13 +118,18 @@ stockRouter.get('/movements', authMiddleware, adminOnly, async (req, res) => {
 stockRouter.post('/adjust', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { productId, type, quantity, reason, outletId } = req.body;
+    const tenantId = req.user!.tenantId;
     
     const targetOutletId = outletId || req.user?.outletId;
     if (!targetOutletId) return res.status(400).json({ error: 'Outlet ID required' });
 
-    // Validate product
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    // Validate product belongs to tenant
+    const product = await prisma.product.findFirst({ where: { id: productId, tenantId } });
     if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // Validate outlet belongs to tenant
+    const outlet = await prisma.outlet.findFirst({ where: { id: targetOutletId, tenantId } });
+    if (!outlet) return res.status(404).json({ error: 'Outlet not found' });
     
     const adjustment = parseInt(quantity);
     
@@ -128,7 +151,6 @@ stockRouter.post('/adjust', authMiddleware, async (req: AuthRequest, res) => {
        });
        newStock = ps.stock;
     } else if (type === 'ADJUSTMENT') {
-       // Assume ADJUSMENT is a delta for consistency in this implementation
        const ps = await prisma.productStock.upsert({
            where: { productId_outletId: { productId, outletId: targetOutletId } },
            update: { stock: { increment: adjustment } },
@@ -157,10 +179,11 @@ stockRouter.post('/adjust', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Bulk stock adjustment (stock opname)
-stockRouter.post('/opname', authMiddleware, adminOnly, async (req, res) => {
+stockRouter.post('/opname', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
-    const { items } = req.body; // [{ productId, actualStock, reason }]
-    const userId = (req as any).user.id;
+    const { items } = req.body;
+    const userId = req.user!.id;
+    const tenantId = req.user!.tenantId;
     
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ error: 'Items array is required' });
@@ -170,6 +193,12 @@ stockRouter.post('/opname', authMiddleware, adminOnly, async (req, res) => {
     
     for (const item of items) {
       if (!item.outletId) continue;
+
+      // Verify product and outlet belong to tenant
+      const product = await prisma.product.findFirst({ where: { id: item.productId, tenantId } });
+      if (!product) continue;
+      const outlet = await prisma.outlet.findFirst({ where: { id: item.outletId, tenantId } });
+      if (!outlet) continue;
 
       const productStock = await prisma.productStock.findUnique({
         where: { productId_outletId: { productId: item.productId, outletId: item.outletId } },

@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const outletsRouter = Router();
 
-// Get all outlets
-outletsRouter.get('/', authMiddleware, async (req, res) => {
+// Get all outlets — scoped to tenant
+outletsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const outlets = await prisma.outlet.findMany({
+      where: { tenantId: req.user!.tenantId },
       orderBy: { createdAt: 'asc' },
     });
     res.json(outlets);
@@ -17,20 +18,21 @@ outletsRouter.get('/', authMiddleware, async (req, res) => {
 });
 
 // Create outlet (Admin only)
-outletsRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
+outletsRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { name, address, phone, isHeadquarters } = req.body;
+    const tenantId = req.user!.tenantId;
 
-    // If setting as HQ, unset others
+    // If setting as HQ, unset others within tenant
     if (isHeadquarters) {
       await prisma.outlet.updateMany({
-        where: { isHeadquarters: true },
+        where: { isHeadquarters: true, tenantId },
         data: { isHeadquarters: false },
       });
     }
 
     const outlet = await prisma.outlet.create({
-      data: { name, address, phone, isHeadquarters },
+      data: { name, address, phone, isHeadquarters, tenantId },
     });
 
     res.json(outlet);
@@ -41,14 +43,19 @@ outletsRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Update outlet
-outletsRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+outletsRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { name, address, phone, isHeadquarters } = req.body;
+    const tenantId = req.user!.tenantId;
+
+    // Verify outlet belongs to tenant
+    const existing = await prisma.outlet.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Outlet not found' });
 
     if (isHeadquarters) {
        await prisma.outlet.updateMany({
-         where: { isHeadquarters: true, id: { not: id } },
+         where: { isHeadquarters: true, id: { not: id }, tenantId },
          data: { isHeadquarters: false },
        });
     }
@@ -65,9 +72,13 @@ outletsRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Delete outlet
-outletsRouter.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+outletsRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    
+    const existing = await prisma.outlet.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Outlet not found' });
     
     // Check if has dependencies
     const hasUsers = await prisma.user.count({ where: { outletId: id } });

@@ -32,12 +32,14 @@ api.interceptors.response.use(
 export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
+  register: (data: { name: string; email: string; password: string; businessName: string }) =>
+    api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
 };
 
 // Products
 export const productsApi = {
-  getAll: (params?: { categoryId?: string; search?: string; outletId?: string }) =>
+  getAll: (params?: { categoryId?: string; search?: string; outletId?: string; limit?: number }) =>
     api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
   create: (data: any) => api.post('/products', data),
@@ -56,7 +58,7 @@ export const categoriesApi = {
 
 // Transactions
 export const transactionsApi = {
-  getAll: (params?: { startDate?: string; endDate?: string; page?: number; limit?: number }) =>
+  getAll: (params?: { startDate?: string; endDate?: string; page?: number; limit?: number; search?: string }) =>
     api.get('/transactions', { params }),
   getById: (id: string) => api.get(`/transactions/${id}`),
   getByReceipt: (receiptNo: string) => api.get(`/transactions/receipt/${receiptNo}`),
@@ -75,8 +77,10 @@ export const usersApi = {
 // Reports
 export const reportsApi = {
   dashboard: () => api.get('/reports/dashboard'),
-  daily: (date?: string) => api.get('/reports/daily', { params: { date } }),
-  topProducts: () => api.get('/reports/top-products'),
+  daily: (startDate?: string, endDate?: string) => 
+    api.get('/reports/daily', { params: { startDate, endDate } }),
+  topProducts: (startDate?: string, endDate?: string) => 
+    api.get('/reports/top-products', { params: { startDate, endDate } }),
   weeklySales: () => api.get('/reports/weekly-sales'),
   lowStock: (threshold?: number) => api.get('/reports/low-stock', { params: { threshold } }),
   paymentBreakdown: () => api.get('/reports/payment-breakdown'),
@@ -88,7 +92,7 @@ export const reportsApi = {
 export const stockApi = {
   getMovements: (productId: string, params?: { page?: number; limit?: number; outletId?: string }) =>
     api.get(`/stock/movements/${productId}`, { params }),
-  getAllMovements: (params?: { type?: string; startDate?: string; endDate?: string; outletId?: string }) =>
+  getAllMovements: (params?: { type?: string; startDate?: string; endDate?: string; outletId?: string; search?: string }) =>
     api.get('/stock/movements', { params }),
   adjust: (data: { productId: string; outletId: string; type: string; quantity: number; reason?: string }) =>
     api.post('/stock/adjust', data),

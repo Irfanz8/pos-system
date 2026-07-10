@@ -22,7 +22,7 @@ export const Route = createFileRoute('/')({
   component: POSPage,
 })
 
-interface CartItem { id: string; name: string; price: number; quantity: number; stock: number }
+interface CartItem { id: string; name: string; price: number; quantity: number; stock: number; trackStock?: boolean }
 
 function POSPage() {
   const { user, logout } = useAuth()
@@ -129,7 +129,7 @@ function POSPage() {
         setAlertMsg('Shift berakhir. Terima kasih!')
       } else {
         // Clock In
-        if (!outletId) return setAlertMsg('Pilih outlet terlebih dahulu')
+        if (!outletId) return setAlertMsg('Pilih gudang terlebih dahulu')
         await shiftsApi.clockIn(outletId, Number(shiftCash))
         setAlertMsg('Shift dimulai. Selamat bekerja!')
       }
@@ -185,6 +185,7 @@ function POSPage() {
               sku: p.sku,
               price: p.price,
               stock: p.stock,
+              trackStock: p.trackStock,
               categoryId: p.categoryId,
               categoryName: p.category?.name || '',
               updatedAt: p.updatedAt,
@@ -233,27 +234,27 @@ function POSPage() {
 
   const addToCart = (product: any) => {
     // Check stock online and offline
-    if (product.stock <= 0) {
+    if (product.trackStock !== false && product.stock <= 0) {
       setAlertMsg('Stok habis');
       return;
     }
     
     const existing = cart.find(i => i.id === product.id)
     if (existing) {
-      if (existing.quantity >= product.stock) {
+      if (product.trackStock !== false && existing.quantity >= product.stock) {
         setAlertMsg('Stok tidak mencukupi');
         return;
       }
       setCart(cart.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i))
     }
-    else setCart([...cart, { id: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock }])
+    else setCart([...cart, { id: product.id, name: product.name, price: product.price, quantity: 1, stock: product.stock, trackStock: product.trackStock }])
   }
 
   const updateQty = (id: string, delta: number) => {
     setCart(cart.map(i => {
       if (i.id === id) {
         const newQty = Math.max(1, i.quantity + delta);
-        if (newQty > i.stock) {
+        if (i.trackStock !== false && newQty > i.stock) {
           setAlertMsg('Stok tidak mencukupi');
           return i;
         }
@@ -376,8 +377,8 @@ function POSPage() {
           ) : products?.map((product: any) => (
             <div 
               key={product.id} 
-              onClick={() => product.stock > 0 && addToCart(product)} 
-              className={`bg-slate-800 p-4 rounded-xl transition-colors group ${product.stock <= 0 ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-slate-700'}`}
+              onClick={() => (product.trackStock === false || product.stock > 0) && addToCart(product)} 
+              className={`bg-slate-800 p-4 rounded-xl transition-colors group ${product.trackStock !== false && product.stock <= 0 ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-slate-700'}`}
             >
               <div className="aspect-square bg-slate-700 rounded-lg mb-3 overflow-hidden relative">
                  {product.image ? (
@@ -387,7 +388,7 @@ function POSPage() {
                  )}
                  {/* Stock Indicator */}
                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 text-white backdrop-blur-sm">
-                    Stok: {product.stock !== undefined ? product.stock : 0}
+                    {product.trackStock === false ? 'Jasa' : `Stok: ${product.stock !== undefined ? product.stock : 0}`}
                  </div>
               </div>
               <h3 className="font-medium text-slate-200 group-hover:text-emerald-400 truncate">{product.name}</h3>
@@ -510,7 +511,7 @@ function POSPage() {
             <div className="space-y-4">
               <div className="bg-slate-50 p-3 rounded-lg text-sm">
                 <p className="text-slate-500">Kasir: <span className="font-medium text-slate-800">{user?.name}</span></p>
-                <p className="text-slate-500">Outlet: <span className="font-medium text-slate-800">{currentOutlet?.name || 'Belum dipilih'}</span></p>
+                <p className="text-slate-500">Gudang: <span className="font-medium text-slate-800">{currentOutlet?.name || 'Belum dipilih'}</span></p>
                 {currentShift && (
                   <p className="text-slate-500">Mulai: <span className="font-medium text-slate-800">{new Date(currentShift.startTime).toLocaleTimeString()}</span></p>
                 )}
@@ -560,8 +561,8 @@ function OutletSelectionModal({ onSelect }: { onSelect: (id: string) => void }) 
         <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <Store className="w-8 h-8 text-emerald-400" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Pilih Outlet</h2>
-        <p className="text-slate-400 mb-6">Silakan pilih outlet operasional Anda saat ini</p>
+        <h2 className="text-xl font-bold text-white mb-2">Pilih Gudang</h2>
+        <p className="text-slate-400 mb-6">Silakan pilih gudang operasional Anda saat ini</p>
         
         {isLoading ? (
             <div className="flex justify-center py-4"><RefreshCw className="w-6 h-6 text-emerald-500 animate-spin" /></div>

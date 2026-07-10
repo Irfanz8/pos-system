@@ -14,6 +14,8 @@ import {
   QrCode,
   ChevronLeft,
   ChevronRight,
+  Search,
+  Download,
 } from 'lucide-react'
 
 export const Route = createFileRoute('/transactions')({
@@ -23,22 +25,88 @@ export const Route = createFileRoute('/transactions')({
   component: TransactionsPage,
 })
 
+const getTodayStr = () => {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getFirstDayStr = () => {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}-01`
+}
+
 function TransactionsPage() {
 
   const [page, setPage] = useState(1)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [search, setSearch] = useState('')
+  const [startDate, setStartDate] = useState(getFirstDayStr())
+  const [endDate, setEndDate] = useState(getTodayStr())
   const [viewTx, setViewTx] = useState<any>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  const handleDownload = async () => {
+    setIsDownloading(true)
+    try {
+      const res = await transactionsApi.getAll({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        search: search || undefined,
+        limit: 999999, // Get all matching data
+      })
+      
+      const txs = res.data.data
+      const headers = ['No. Struk', 'Waktu', 'Kasir', 'Pelanggan', 'No HP', 'Total Item', 'Total Tagihan', 'Diskon', 'Metode', 'Gudang']
+      const rows = txs.map((tx: any) => [
+        tx.receiptNo,
+        new Date(tx.createdAt).toLocaleString('id-ID'),
+        tx.user?.name || '-',
+        tx.customer?.name || '-',
+        tx.customer?.phone || '-',
+        tx._count?.items || tx.items?.length || 0,
+        tx.total,
+        tx.discount || 0,
+        tx.paymentMethod,
+        tx.outlet?.name || '-'
+      ])
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((r: any) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      ].join('\n')
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Transaksi_${startDate || 'All'}_to_${endDate || 'All'}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      toast.success('Berhasil mengunduh data transaksi')
+    } catch (e) {
+      toast.error('Gagal mengunduh data')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, startDate, endDate],
+    queryKey: ['transactions', page, startDate, endDate, search],
     queryFn: async () => {
       const res = await transactionsApi.getAll({
         page,
         limit: 15,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        search: search || undefined,
       })
       return res.data
     },
@@ -61,26 +129,44 @@ function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Transaksi</h1>
-        <p className="text-slate-500">Riwayat semua transaksi</p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Transaksi</h1>
+          <p className="text-slate-500">Riwayat semua transaksi</p>
+        </div>
+        <button onClick={handleDownload} disabled={isDownloading} className="btn btn-primary whitespace-nowrap">
+          <Download className="w-4 h-4" /> {isDownloading ? 'Mengunduh...' : 'Unduh CSV'}
+        </button>
       </div>
 
       {/* Filters */}
-      <div className="card flex flex-col md:flex-row gap-4 items-end">
-        <div>
-          <label className="label">Dari Tanggal</label>
-          <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1) }} className="input" />
+      <div className="card flex flex-col md:flex-row gap-4 items-end justify-between">
+        <div className="flex-1 w-full md:w-auto relative min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Cari struk / nama / HP..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="input pl-10"
+          />
         </div>
-        <div>
-          <label className="label">Sampai Tanggal</label>
-          <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1) }} className="input" />
+        
+        <div className="flex gap-4 items-end w-full md:w-auto">
+          <div>
+            <label className="label">Dari Tanggal</label>
+            <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1) }} className="input" />
+          </div>
+          <div>
+            <label className="label">Sampai Tanggal</label>
+            <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1) }} className="input" />
+          </div>
+          {(startDate !== getFirstDayStr() || endDate !== getTodayStr() || search) && (
+            <button onClick={() => { setStartDate(getFirstDayStr()); setEndDate(getTodayStr()); setSearch(''); setPage(1) }} className="btn btn-secondary">
+              <X className="w-4 h-4" /> Reset
+            </button>
+          )}
         </div>
-        {(startDate || endDate) && (
-          <button onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }} className="btn btn-secondary">
-            <X className="w-4 h-4" /> Reset
-          </button>
-        )}
       </div>
 
       {/* Table */}

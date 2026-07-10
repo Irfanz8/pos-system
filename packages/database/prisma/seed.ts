@@ -6,70 +6,85 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Starting seed...");
 
-  // 1. Create Main Outlet
+  // 1. Create Demo Tenant
+  const demoTenant = await prisma.tenant.upsert({
+    where: { slug: "demo-store" },
+    update: {},
+    create: {
+      id: "tenant-demo",
+      name: "Demo Store",
+      slug: "demo-store",
+    },
+  });
+  console.log("✅ Demo Tenant created:", demoTenant.name);
+
+  // 2. Create Main Outlet (belongs to tenant)
   const mainOutlet = await prisma.outlet.upsert({
     where: { id: "outlet-main" },
-    update: {},
+    update: { tenantId: demoTenant.id },
     create: {
       id: "outlet-main",
       name: "Main Outlet",
       address: "Jl. Utama No. 1",
       phone: "081234567890",
       isHeadquarters: true,
+      tenantId: demoTenant.id,
     },
   });
   console.log("✅ Main Outlet created");
 
-  // 2. Create admin user
+  // 3. Create admin user (belongs to tenant)
   const adminPassword = await bcrypt.hash("admin123", 10);
   await prisma.user.upsert({
     where: { email: "admin@pos.com" },
-    update: { outletId: mainOutlet.id },
+    update: { outletId: mainOutlet.id, tenantId: demoTenant.id },
     create: {
       name: "Administrator",
       email: "admin@pos.com",
       password: adminPassword,
       role: "ADMIN",
       outletId: mainOutlet.id,
+      tenantId: demoTenant.id,
     },
   });
 
-  // 3. Create cashier user
+  // 4. Create cashier user (belongs to tenant)
   const cashierPassword = await bcrypt.hash("kasir123", 10);
   await prisma.user.upsert({
     where: { email: "kasir@pos.com" },
-    update: { outletId: mainOutlet.id },
+    update: { outletId: mainOutlet.id, tenantId: demoTenant.id },
     create: {
       name: "Kasir 1",
       email: "kasir@pos.com",
       password: cashierPassword,
       role: "CASHIER",
       outletId: mainOutlet.id,
+      tenantId: demoTenant.id,
     },
   });
   console.log("✅ Users created");
 
-  // 4. Create categories
+  // 5. Create categories (belongs to tenant)
   await Promise.all([
     prisma.category.upsert({
       where: { id: "cat-makanan" },
-      update: {},
-      create: { id: "cat-makanan", name: "Makanan", description: "Berbagai jenis makanan" },
+      update: { tenantId: demoTenant.id },
+      create: { id: "cat-makanan", name: "Makanan", description: "Berbagai jenis makanan", tenantId: demoTenant.id },
     }),
     prisma.category.upsert({
       where: { id: "cat-minuman" },
-      update: {},
-      create: { id: "cat-minuman", name: "Minuman", description: "Berbagai jenis minuman" },
+      update: { tenantId: demoTenant.id },
+      create: { id: "cat-minuman", name: "Minuman", description: "Berbagai jenis minuman", tenantId: demoTenant.id },
     }),
     prisma.category.upsert({
       where: { id: "cat-snack" },
-      update: {},
-      create: { id: "cat-snack", name: "Snack", description: "Makanan ringan" },
+      update: { tenantId: demoTenant.id },
+      create: { id: "cat-snack", name: "Snack", description: "Makanan ringan", tenantId: demoTenant.id },
     }),
   ]);
   console.log("✅ Categories created");
 
-  // 5. Create products and stock
+  // 6. Create products and stock (belongs to tenant)
   const products = [
     { name: "Nasi Goreng", sku: "MKN001", price: 25000, stock: 100, categoryId: "cat-makanan" },
     { name: "Mie Goreng", sku: "MKN002", price: 22000, stock: 100, categoryId: "cat-makanan" },
@@ -82,15 +97,16 @@ async function main() {
   ];
 
   for (const p of products) {
-    // Create product (without stock)
+    // Create product (without stock, with tenantId)
     const product = await prisma.product.upsert({
-      where: { sku: p.sku },
+      where: { sku_tenantId: { sku: p.sku, tenantId: demoTenant.id } },
       update: {},
       create: {
         name: p.name,
         sku: p.sku,
         price: p.price,
         categoryId: p.categoryId,
+        tenantId: demoTenant.id,
       },
     });
 
@@ -110,6 +126,7 @@ async function main() {
   console.log("🎉 Seed completed!");
   console.log("👤 Admin: admin@pos.com / admin123");
   console.log("👤 Kasir: kasir@pos.com / kasir123");
+  console.log("🏪 Tenant: Demo Store (demo-store)");
 }
 
 main()

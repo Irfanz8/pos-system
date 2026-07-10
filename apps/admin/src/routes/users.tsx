@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi, outletsApi } from '../lib/api'
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Eye, EyeOff, Key } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/users')({
@@ -18,6 +18,7 @@ function UsersPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<any>(null)
+  const [resettingPasswordUser, setResettingPasswordUser] = useState<any>(null)
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -70,8 +71,17 @@ function UsersPage() {
                 </td>
                 <td className="table-cell text-slate-500">{user.outlet?.name || '-'}</td>
                 <td className="table-cell text-right">
-                  <button onClick={() => { setEditingUser(user); setIsModalOpen(true); }} className="p-2 hover:bg-indigo-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
-                  <button onClick={() => confirm(`Hapus ${user.name}?`) && deleteMutation.mutate(user.id)} className="p-2 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                  <div className="flex justify-end gap-1">
+                    <button onClick={() => setResettingPasswordUser(user)} className="p-2 text-slate-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg" title="Ganti Password">
+                      <Key className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setEditingUser(user); setIsModalOpen(true); }} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => confirm(`Hapus ${user.name}?`) && deleteMutation.mutate(user.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Hapus">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -80,6 +90,7 @@ function UsersPage() {
       </div>
 
       {isModalOpen && <UserModal user={editingUser} onClose={() => setIsModalOpen(false)} />}
+      {resettingPasswordUser && <ResetPasswordModal user={resettingPasswordUser} onClose={() => setResettingPasswordUser(null)} />}
     </div>
   )
 }
@@ -95,6 +106,7 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const { data: outlets } = useQuery({
     queryKey: ['outlets'],
@@ -126,21 +138,111 @@ function UserModal({ user, onClose }: { user: any; onClose: () => void }) {
           {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>}
           <div><label className="label">Nama</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input" required /></div>
           <div><label className="label">Email</label><input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input" required /></div>
-          <div><label className="label">Password</label><input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="input" required={!user} /></div>
+          {!user && (
+            <div>
+              <label className="label">Password</label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? 'text' : 'password'} 
+                  value={formData.password} 
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                  className="input pr-10" 
+                  required
+                  placeholder="Masukkan password"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          )}
           <div><label className="label">Role</label><select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="input"><option value="CASHIER">Kasir</option><option value="ADMIN">Admin</option></select></div>
           <div>
-            <label className="label">Outlet</label>
+            <label className="label">Gudang</label>
             <select 
               value={formData.outletId} 
               onChange={(e) => setFormData({ ...formData, outletId: e.target.value })} 
               className="input"
+              required
             >
-              <option value="">Tidak ada outlet (Pusat)</option>
+              <option value="">Pilih Gudang...</option>
               {outlets?.map((o: any) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
           </div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">Batal</button>
+            <button type="submit" disabled={isLoading} className="btn btn-primary flex-1">{isLoading ? 'Menyimpan...' : 'Simpan'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordModal({ user, onClose }: { user: any; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    try {
+      await usersApi.update(user.id, { password })
+      toast.success('Password berhasil direset')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      onClose()
+    } catch (err: any) { 
+      setError(err.response?.data?.error || 'Gagal mereset password') 
+    } finally { 
+      setIsLoading(false) 
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold">Ganti Password</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="bg-slate-50 p-3 rounded-lg">
+            <p className="text-sm text-slate-500">Pengguna:</p>
+            <p className="font-medium text-slate-800">{user.name}</p>
+          </div>
+          
+          {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>}
+          
+          <div>
+            <label className="label">Password Baru</label>
+            <div className="relative">
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                className="input pr-10" 
+                required
+                placeholder="Masukkan password baru"
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">Batal</button>
             <button type="submit" disabled={isLoading} className="btn btn-primary flex-1">{isLoading ? 'Menyimpan...' : 'Simpan'}</button>

@@ -44,7 +44,6 @@ function LoginPage() {
           </div>
           <button type="submit" disabled={loading} className="w-full btn btn-primary py-3 justify-center">{loading ? <><Loader2 className="w-5 h-5 animate-spin" />Memproses...</> : 'Masuk'}</button>
         </form>
-        <div className="mt-6 p-3 bg-slate-700/50 rounded-lg text-center"><p className="text-slate-500 text-xs">Demo: kasir@pos.com / kasir123</p></div>
       </div>
     </div>
   )

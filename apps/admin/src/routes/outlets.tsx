@@ -97,15 +97,15 @@ function OutletsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Manajemen Outlet</h1>
-          <p className="text-slate-500">Kelola daftar outlet dan cabang</p>
+          <h1 className="text-2xl font-bold text-slate-800">Manajemen Gudang</h1>
+          <p className="text-slate-500">Kelola daftar gudang dan lokasi penyimpanan</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Tambah Outlet
+          Tambah Gudang
         </button>
       </div>
 
@@ -115,7 +115,7 @@ function OutletsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Cari outlet..."
+              placeholder="Cari gudang..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -128,7 +128,7 @@ function OutletsPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Nama Outlet
+                  Nama Gudang
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   Alamat
@@ -154,7 +154,7 @@ function OutletsPage() {
               ) : filteredOutlets.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    Tidak ada outlet yang ditemukan
+                    Tidak ada gudang yang ditemukan
                   </td>
                 </tr>
               ) : (
@@ -222,13 +222,13 @@ function OutletsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b">
               <h2 className="text-xl font-bold text-slate-800">
-                {editingOutlet ? 'Edit Outlet' : 'Tambah Outlet Baru'}
+                {editingOutlet ? 'Edit Gudang' : 'Tambah Gudang Baru'}
               </h2>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Nama Outlet
+                  Nama Gudang
                 </label>
                 <input
                   type="text"

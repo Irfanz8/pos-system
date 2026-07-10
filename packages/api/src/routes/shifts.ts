@@ -8,11 +8,16 @@ export const shiftsRouter = Router();
 shiftsRouter.post('/clock-in', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
+    const tenantId = req.user?.tenantId;
     const { outletId, cashStart } = req.body;
 
-    if (!userId || !outletId) {
+    if (!userId || !outletId || !tenantId) {
       return res.status(400).json({ error: 'User ID and Outlet ID are required' });
     }
+
+    // Verify outlet belongs to tenant
+    const outlet = await prisma.outlet.findFirst({ where: { id: outletId, tenantId } });
+    if (!outlet) return res.status(403).json({ error: 'Outlet not found' });
 
     // Check for existing active shift
     const existingShift = await prisma.shift.findFirst({
@@ -117,7 +122,10 @@ shiftsRouter.get('/current', authMiddleware, async (req: AuthRequest, res) => {
 shiftsRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { outletId, userId, startDate, endDate } = req.query;
-    const where: any = {};
+    const tenantId = req.user!.tenantId;
+    const where: any = {
+        user: { tenantId }
+    };
 
     if (req.user?.role === 'CASHIER') {
       where.userId = req.user.id;

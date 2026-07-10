@@ -4,12 +4,17 @@ import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const taxesRouter = Router();
 
-// Get all taxes (can filter by outletId)
-taxesRouter.get('/', authMiddleware, async (req, res) => {
+// Get all taxes (can filter by outletId) — scoped to tenant
+taxesRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { outletId } = req.query;
+    const tenantId = req.user!.tenantId;
+    
     const taxes = await prisma.tax.findMany({
-      where: outletId ? { outletId: String(outletId) } : undefined,
+      where: {
+        outlet: { tenantId },
+        ...(outletId ? { outletId: String(outletId) } : {})
+      },
       orderBy: { name: 'asc' },
     });
     res.json(taxes);
@@ -19,10 +24,11 @@ taxesRouter.get('/', authMiddleware, async (req, res) => {
 });
 
 // Get single tax
-taxesRouter.get('/:id', authMiddleware, async (req, res) => {
+taxesRouter.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const tax = await prisma.tax.findUnique({
-      where: { id: req.params.id },
+    const tenantId = req.user!.tenantId;
+    const tax = await prisma.tax.findFirst({
+      where: { id: req.params.id, outlet: { tenantId } },
     });
     
     if (!tax) {
@@ -39,11 +45,16 @@ taxesRouter.get('/:id', authMiddleware, async (req, res) => {
 taxesRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { name, rate, type, isActive, outletId } = req.body;
+    const tenantId = req.user!.tenantId;
     
     // validate
     if (!name || isNaN(rate) || !type || !outletId) {
        return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Verify outlet belongs to tenant
+    const outlet = await prisma.outlet.findFirst({ where: { id: outletId, tenantId } });
+    if (!outlet) return res.status(403).json({ error: 'Outlet not found' });
 
     const tax = await prisma.tax.create({
       data: { 
@@ -67,6 +78,12 @@ taxesRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) =
 taxesRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { name, rate, type, isActive } = req.body;
+    const tenantId = req.user!.tenantId;
+    
+    // Verify tax belongs to tenant
+    const existing = await prisma.tax.findFirst({ where: { id: req.params.id, outlet: { tenantId } } });
+    if (!existing) return res.status(404).json({ error: 'Tax not found' });
+
     const tax = await prisma.tax.update({
       where: { id: req.params.id },
       data: { 
@@ -91,6 +108,12 @@ taxesRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res)
 // Delete tax (admin only)
 taxesRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
+    const tenantId = req.user!.tenantId;
+    
+    // Verify tax belongs to tenant
+    const existing = await prisma.tax.findFirst({ where: { id: req.params.id, outlet: { tenantId } } });
+    if (!existing) return res.status(404).json({ error: 'Tax not found' });
+
     await prisma.tax.delete({ where: { id: req.params.id } });
     res.json({ message: 'Tax deleted' });
   } catch (error: any) {

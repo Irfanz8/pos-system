@@ -1,17 +1,14 @@
 import { Router } from 'express';
 import nodemailer from 'nodemailer';
 import { prisma } from '../lib/prisma.js';
+import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
 export const emailRouter = Router();
 
 // Create a test account for development (Ethereal)
-// In production, use real environment variables
 const createTransporter = async () => {
-  // Generate test SMTP service account from ethereal.email
-  // Only needed if you don't have a real mail account for testing
   const testAccount = await nodemailer.createTestAccount();
 
-  // create reusable transporter object using the default SMTP transport
   return nodemailer.createTransport({
     host: "smtp.ethereal.email",
     port: 587,
@@ -26,16 +23,18 @@ const createTransporter = async () => {
 // Memoize transporter for dev
 let transporter: nodemailer.Transporter | null = null;
 
-emailRouter.post('/send-receipt', async (req, res) => {
+// Send Receipt — scoped to tenant
+emailRouter.post('/send-receipt', authMiddleware, async (req: AuthRequest, res) => {
   const { email, transactionId } = req.body;
+  const tenantId = req.user!.tenantId;
 
   if (!email || !transactionId) {
     return res.status(400).json({ error: 'Email and Transaction ID are required' });
   }
 
   try {
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: transactionId },
+    const transaction = await prisma.transaction.findFirst({
+      where: { id: transactionId, outlet: { tenantId } },
       include: {
         items: { include: { product: true } },
         user: true,

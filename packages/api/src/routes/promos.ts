@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware, adminOnly } from '../middleware/auth.js';
+import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth.js';
 
 export const promosRouter = Router();
 
 // Get all promos
-promosRouter.get('/', authMiddleware, async (req, res) => {
+promosRouter.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { search, isActive, type } = req.query;
+    const tenantId = req.user!.tenantId;
 
-    const where: any = {};
+    const where: any = { tenantId };
     if (search) {
       where.OR = [
         { code: { contains: search as string, mode: 'insensitive' } },
@@ -38,12 +39,13 @@ promosRouter.get('/', authMiddleware, async (req, res) => {
 });
 
 // Get promo by ID
-promosRouter.get('/:id', authMiddleware, async (req, res) => {
+promosRouter.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const tenantId = req.user!.tenantId;
 
-    const promo = await prisma.promo.findUnique({
-      where: { id },
+    const promo = await prisma.promo.findFirst({
+      where: { id, tenantId },
       include: {
         product: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
@@ -70,7 +72,7 @@ promosRouter.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create promo (admin only)
-promosRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
+promosRouter.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const {
       code,
@@ -87,13 +89,14 @@ promosRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
       endDate,
       maxUsage,
     } = req.body;
+    const tenantId = req.user!.tenantId;
 
     if (!code || !name || !type || !startDate || !endDate) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Check if code already exists
-    const existing = await prisma.promo.findUnique({ where: { code } });
+    // Check if code already exists within tenant
+    const existing = await prisma.promo.findUnique({ where: { code_tenantId: { code: code.toUpperCase(), tenantId } } });
     if (existing) {
       return res.status(400).json({ error: 'Promo code already exists' });
     }
@@ -113,6 +116,7 @@ promosRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         maxUsage,
+        tenantId,
       },
     });
 
@@ -123,9 +127,10 @@ promosRouter.post('/', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Update promo (admin only)
-promosRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
+promosRouter.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const tenantId = req.user!.tenantId;
     const {
       code,
       name,
@@ -142,6 +147,9 @@ promosRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
       isActive,
       maxUsage,
     } = req.body;
+
+    const existing = await prisma.promo.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Promo not found' });
 
     const data: any = {};
     if (code !== undefined) data.code = code.toUpperCase();
@@ -174,9 +182,13 @@ promosRouter.put('/:id', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Delete promo (admin only)
-promosRouter.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
+promosRouter.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+
+    const existing = await prisma.promo.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Promo not found' });
 
     // Delete related TransactionPromos first
     await prisma.transactionPromo.deleteMany({ where: { promoId: id } });
@@ -189,16 +201,17 @@ promosRouter.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
 });
 
 // Validate promo code (for cashier)
-promosRouter.post('/validate', authMiddleware, async (req, res) => {
+promosRouter.post('/validate', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { code, total, items } = req.body;
+    const tenantId = req.user!.tenantId;
 
     if (!code) {
       return res.status(400).json({ error: 'Promo code is required' });
     }
 
     const promo = await prisma.promo.findUnique({
-      where: { code: code.toUpperCase() },
+      where: { code_tenantId: { code: code.toUpperCase(), tenantId } },
       include: {
         product: { select: { id: true, name: true } },
         category: { select: { id: true, name: true } },
